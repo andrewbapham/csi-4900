@@ -1,21 +1,27 @@
-from map_utils import get_valid_ids, get_images_by_id_and_type
+from map_utils import get_valid_ids_in_tile, get_images_by_id_and_type
 from PIL import ImageDraw
 import matplotlib.pyplot as plt
 import numpy as np
+
+from models import TileCoords
 
 # You'll likely want to trim these into smaller boxes and iterate on them
 # There is a limit on the number of signs you can get back in one query
 # However, this should show you a quick demo on how I built it out
 
-BBOX = (-76.1, 45.2, -75.4, 45.5) # OTTAWA
+# BBOX = (-76.1, 45.2, -75.4, 45.5) # OTTAWA
 # BBOX = (-80.0, 40.0, -79.0, 41.0) # PITTSBURGH
+TILE_COORDS = TileCoords(
+    z=14, x=4627, y=5938
+)  # somewhere in peterborough; 19 sign detections
 
-TARGET_SIGNS = ["regulatory--stop--g1"]
+TARGET_SIGNS = ["regulatory--stop--g1", "regulatory--yield--g1"]
 
-id_results = get_valid_ids(BBOX, TARGET_SIGNS)
-
+id_results = get_valid_ids_in_tile(TILE_COORDS, TARGET_SIGNS)
+print(f"found {len(id_results)} sign detections")
 image_results = get_images_by_id_and_type(id_results, TARGET_SIGNS)
-
+print(f"found {len(image_results)} images")
+print([i["image_id"] for i in image_results])
 for img_res in image_results:
     im = img_res["image"]
     det_class = img_res["class"]
@@ -32,7 +38,7 @@ for img_res in image_results:
 
     plt.imshow(np.array(im))
     plt.title(title)
-    plt.axis('off')
+    plt.axis("off")
     plt.show()
     plt.close()
 
