@@ -8,7 +8,15 @@ import mapbox_vector_tile
 from PIL import Image
 from vt2geojson.tools import vt_bytes_to_geojson
 
-from models import MapboxTile, TileCoords, TrafficSignFeature
+from models import (
+    MapboxTile,
+    MapillaryImageCreator,
+    MapillaryImageWithDetections,
+    TileCoords,
+    TrafficSignFeature,
+    MapillaryImage,
+    MapillaryImageDetection,
+)
 from config import MAP_CONFIG
 from api import call_map_api
 
@@ -51,11 +59,7 @@ def is_perspective_like(meta: dict[str, Any]) -> bool:
 
 def decode_geometry(geom_bytes: str) -> Optional[dict[str, Any]]:
     """Base64 MVT => dict, or None."""
-    try:
-        return mapbox_vector_tile.decode(base64.b64decode(geom_bytes))
-    except Exception as e:
-        print("Error decoding geometry:", e)
-        return None
+    return mapbox_vector_tile.decode(base64.b64decode(geom_bytes))
 
 
 def project_coords(
@@ -123,36 +127,41 @@ def get_valid_ids_in_tile(
 
     print(f"found {len(tile.features)} features")
     # return tile.features
-    return [f for f in tile.features if f.properties.value in classes]
+    if classes:
+        return [f for f in tile.features if f.properties.value in classes]
+    return tile.features
 
 
-def get_images_by_id_and_type(
-    id_results: list[TrafficSignFeature], classes: Iterable[str]
-) -> list[dict[str, Any]]:
+def download_image(image: MapillaryImage) -> None:
+    """
+    Download an image from the Mapillary API.
+    Updates the image object in place.
+    """
+    ir = MAP_CONFIG.session.get(image.url, timeout=120)
+    ir.raise_for_status()
+    image.image_bytes = ir.content
+    image.image = Image.open(io.BytesIO(ir.content)).convert("RGB")
+    image.width, image.height = image.image.size
+
+
+def get_candidate_images(id_results: list[TrafficSignFeature]) -> list[MapillaryImage]:
     """
     For each feature id:
       - fetch up to MAX_IMAGES_PER_ID images
       - keep perspective-like images
-      - fetch detections and keep only those with values in `classes`
-      - download best-available thumbnail and convert polygon => (xmin, ymin, xmax, ymax) pixels
-    Returns: [{image(PIL), class, bbox, creator_username, creator_id, lat, lon}, ...]
+    Returns: [{id, url, lat, lon}, ...]
     """
-    classes = set(classes)
-    candidates: list[dict[str, Any]] = []
+    candidates: list[MapillaryImage] = []
     candidate_ids: set[int] = set()
-
-    # Pass 1: enumerate candidate images for all features
-    print(f"Pass 1: enumerate candidate images for {len(id_results)} features")
     for feat in id_results:
         fid = feat.id
         try:
             feat_url = f"https://graph.mapillary.com/{fid}"
             feat_params = {
-                "access_token": MAP_CONFIG.TOKEN,
                 "fields": (
                     "id,object_value,"
                     f"images.limit({MAP_CONFIG.MAX_IMAGES_PER_ID})"
-                    "{id,camera_type,is_pano,width,height,"
+                    "{id,camera_type,is_pano,width,height,sequence,"
                     "thumb_original_url,thumb_2048_url,thumb_1024_url,thumb_256_url}"
                 ),
             }
@@ -169,78 +178,93 @@ def get_images_by_id_and_type(
 
                 if not imeta["id"] in candidate_ids:
                     candidates.append(
-                        {
-                            "id": imeta["id"],
-                            "url": url,
-                            "camera_type": imeta["camera_type"],
-                            "lat": feat.latitude,
-                            "lon": feat.longitude,
-                        }
+                        MapillaryImage(
+                            id=imeta["id"],
+                            url=url,
+                            camera_type=imeta["camera_type"],
+                            lat=feat.latitude,
+                            lon=feat.longitude,
+                            sequence=imeta["sequence"],
+                        )
                     )
                     candidate_ids.add(imeta["id"])
 
         except requests.RequestException as e:
             print(f"[warn] feature {fid} fetch failed: {e}")
             time.sleep(MAP_CONFIG.SLEEP_BETWEEN_PAGES)
-    print(f"Found {len(candidate_ids)} unique candidate images")
-    # Pass 2: pull detections & images
-    results: list[dict[str, Any]] = []
-    print(f"Pass 2: pull detections & images for {len(candidates)} candidate images")
+    return candidates
+
+
+def get_detections_by_image(image: MapillaryImage) -> list[MapillaryImageDetection]:
+    """
+    Fetch detections in an image.
+    """
+    try:
+        det_url = f"https://graph.mapillary.com/{image.id}/detections"
+        det_params = {
+            "fields": "id,value,geometry,image{id,creator}",
+        }
+        dr = MAP_CONFIG.session.get(det_url, params=det_params, timeout=60)
+        dr.raise_for_status()
+        dets_raw = dr.json().get("data", []) or []
+    except requests.RequestException as e:
+        print(f"[warn] detections fetch failed for image {image.id}: {e}")
+        return []
+    if not dets_raw:
+        return []
+
+    # Grab creator info for this image from first detection object if present
+    first_det = dets_raw[0]
+    creator = MapillaryImageCreator(
+        id=first_det.get("image", {}).get("creator", {}).get("id"),
+        username=first_det.get("image", {}).get("creator", {}).get("username"),
+    )
+    image.creator = creator
+
+    dets = [
+        MapillaryImageDetection(
+            id=d.get("id"),
+            value=d.get("value"),
+            geometry=d.get("geometry"),
+            image=image,
+        )
+        for d in dets_raw
+    ]
+    return dets
+
+
+def get_images_by_id_and_type(
+    id_results: list[TrafficSignFeature],
+) -> list[MapillaryImageDetection]:
+    """
+    For each feature id:
+      - fetch up to MAX_IMAGES_PER_ID images
+      - keep perspective-like images
+      - fetch detections and keep only those with values in `classes`
+      - download best-available thumbnail and convert polygon => (xmin, ymin, xmax, ymax) pixels
+    Returns: [{image(PIL), class, bbox, creator_username, creator_id, lat, lon}, ...]
+    """
+
+    candidates = get_candidate_images(id_results)
+    print(f"Found {len(candidates)} unique candidate images")
+    results: dict[int, MapillaryImageWithDetections] = {}
+
     for cand in candidates:
-        image_id = cand["id"]
-        img_url = cand["url"]
-        lat = cand["lat"]
-        lon = cand["lon"]
-
-        # 2a) detections
-        try:
-            det_url = f"https://graph.mapillary.com/{image_id}/detections"
-            det_params = {
-                "access_token": MAP_CONFIG.TOKEN,
-                "fields": "id,value,geometry,image{id,creator}",
-            }
-            dr = MAP_CONFIG.session.get(det_url, params=det_params, timeout=60)
-            dr.raise_for_status()
-            dets_raw = dr.json().get("data", []) or []
-        except requests.RequestException as e:
-            print(f"[warn] detections fetch failed for image {image_id}: {e}")
-            time.sleep(MAP_CONFIG.SLEEP_BETWEEN_PAGES)
-            continue
-
-        dets = [d for d in dets_raw if d.get("value") in classes]
+        dets = get_detections_by_image(cand)
         if not dets:
+            print(f"[warn] no detections found for {cand.id}")
             time.sleep(MAP_CONFIG.SLEEP_BETWEEN_PAGES)
             continue
 
-        # Grab creator info if present
-        creator_username: Optional[str] = None
-        creator_id: Optional[str] = None
-        first_img = dets_raw[0].get("image") or {}
-        creator = first_img.get("creator") or {}
-        if creator:
-            creator_id = creator.get("id")
-            creator_username = creator.get("username")
+        print(f"Downloading image {cand.id}")
+        download_image(cand)
+        print(f"Image {cand.id} downloaded, size: {cand.width}x{cand.height}")
 
-        # 2b) image
-        print(f"Pass 2b: download image for {image_id}")
-        try:
-            ir = MAP_CONFIG.session.get(img_url, timeout=120)
-            ir.raise_for_status()
-            im = Image.open(io.BytesIO(ir.content)).convert("RGB")
-            W, H = im.size
-        except requests.RequestException as e:
-            print(f"[warn] image download failed for {image_id}: {e}")
-            time.sleep(MAP_CONFIG.SLEEP_BETWEEN_PAGES)
-            continue
-
-        # 2c) polygons => bboxes
-        print(f"Pass 2c: polygons => bboxes for {len(dets)} detections")
         for det in dets:
-            geom_raw = det.get("geometry")
-            if not geom_raw:
+            if not det.geometry:
                 continue
 
-            decoded = decode_geometry(geom_raw)
+            decoded = decode_geometry(det.geometry)
             if not decoded:
                 continue
 
@@ -255,29 +279,33 @@ def get_images_by_id_and_type(
                     if not ring:
                         continue
 
-                    proj = project_coords(ring, W, H, extent=extent)
+                    proj = project_coords(ring, cand.width, cand.height, extent=extent)
                     xs = [p[0] for p in proj]
                     ys = [p[1] for p in proj]
                     xmin, xmax = min(xs), max(xs)
                     ymin, ymax = min(ys), max(ys)
-                    bxmin, bymin, bxmax, bymax = clamp_box(xmin, ymin, xmax, ymax, W, H)
+                    bxmin, bymin, bxmax, bymax = clamp_box(
+                        xmin, ymin, xmax, ymax, cand.width, cand.height
+                    )
 
-                    results.append(
-                        {
-                            "image": im,
-                            "class": det.get("value"),
-                            "bbox": (bxmin, bymin, bxmax, bymax),
-                            "creator_username": creator_username,
-                            "creator_id": creator_id,
-                            "lat": lat,
-                            "lon": lon,
-                            "image_id": image_id,
-                        }
+                    if cand.id not in results:
+                        results[cand.id] = MapillaryImageWithDetections(
+                            image=cand, detections=[]
+                        )
+
+                    results[cand.id].detections.append(
+                        MapillaryImageDetection(
+                            id=det.id,
+                            value=det.value,
+                            geometry=det.geometry,
+                            image=cand,
+                            bbox=(bxmin, bymin, bxmax, bymax),
+                        )
                     )
 
         time.sleep(MAP_CONFIG.SLEEP_BETWEEN_PAGES)
 
-    return results
+    return results.values()
 
 
 if __name__ == "__main__":

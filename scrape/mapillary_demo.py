@@ -14,27 +14,32 @@ from models import TileCoords
 TILE_COORDS = TileCoords(
     z=14, x=4627, y=5938
 )  # somewhere in peterborough; 19 sign detections
-
-TARGET_SIGNS = ["regulatory--stop--g1", "regulatory--yield--g1"]
+TILE_COORDS = TileCoords(z=14, x=4746, y=5867)  # somewhere in markham
+TARGET_SIGNS = None
 
 id_results = get_valid_ids_in_tile(TILE_COORDS, TARGET_SIGNS)
 print(f"found {len(id_results)} sign detections")
-image_results = get_images_by_id_and_type(id_results, TARGET_SIGNS)
+image_results = get_images_by_id_and_type(id_results)
 print(f"found {len(image_results)} images")
-print([i["image_id"] for i in image_results])
+print([i.image.id for i in image_results])
 for img_res in image_results:
-    im = img_res["image"]
-    det_class = img_res["class"]
-    bbox = img_res["bbox"]
-    creator_username = img_res["creator_username"]
-    creator_id = img_res["creator_id"]
-    lat = img_res["lat"]
-    lon = img_res["lon"]
-
+    im = img_res.image.image
     draw = ImageDraw.Draw(im)
-    draw.rectangle(bbox, outline="magenta", width=3)
+    detections = img_res.detections
+    for det in detections:
+        det_class = det.value
+        bbox = det.bbox
+        creator_username = det.image.creator.username
+        creator_id = det.image.creator.id
+        lat = det.image.lat
+        lon = det.image.lon
 
-    title = f"{det_class} | {creator_username} ({creator_id}) | ({lat:.5f}, {lon:.5f})"
+        if not bbox:
+            continue
+
+        draw.rectangle(bbox, outline="magenta", width=3)
+
+    title = f"{det_class} | {img_res.image.sequence} {creator_username} ({creator_id}) | ({lat:.5f}, {lon:.5f})"
 
     plt.imshow(np.array(im))
     plt.title(title)

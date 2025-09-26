@@ -1,3 +1,4 @@
+from typing import Any
 from pydantic import BaseModel, Field
 from dataclasses import dataclass
 
@@ -48,3 +49,35 @@ class TrafficSignFeature(BaseModel):
 class MapboxTile(BaseModel):
     type: str = Field(default="FeatureCollection")
     features: list[TrafficSignFeature] = Field(default_factory=list)
+
+
+class MapillaryImageCreator(BaseModel):
+    id: int
+    username: str
+
+
+class MapillaryImage(BaseModel):
+    id: int
+    url: str
+    camera_type: str
+    lat: float
+    lon: float
+    creator: MapillaryImageCreator = None
+    image_bytes: bytes = None  # PIL image bytes
+    image: Any = None  # PIL image
+    width: int = None
+    height: int = None
+    sequence: str = None
+
+
+class MapillaryImageDetection(BaseModel):
+    id: int
+    value: str
+    geometry: str  # base64 encoded geometry for bounding box
+    image: MapillaryImage
+    bbox: tuple[int, int, int, int] = None
+
+
+class MapillaryImageWithDetections(BaseModel):
+    image: MapillaryImage
+    detections: list[MapillaryImageDetection] = Field(default_factory=list)
