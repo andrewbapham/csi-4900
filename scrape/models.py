@@ -3,11 +3,14 @@ from pydantic import BaseModel, Field
 from dataclasses import dataclass
 
 
-@dataclass
-class TileCoords:
+class Tile(BaseModel):
     z: int
     x: int
     y: int
+
+    def __str__(self):
+        return f"({self.x}, {self.y}, {self.z})"
+
 
 
 # ----------------------------

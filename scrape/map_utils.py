@@ -12,7 +12,7 @@ from models import (
     MapboxTile,
     MapillaryImageCreator,
     MapillaryImageWithDetections,
-    TileCoords,
+    Tile,
     TrafficSignFeature,
     MapillaryImage,
     MapillaryImageDetection,
@@ -93,33 +93,27 @@ def clamp_box(
 # Public functions
 # ----------------------------
 def get_valid_ids_in_tile(
-    tile_coords: TileCoords, classes: Iterable[str]
+    tile: Tile, classes: Iterable[str]
 ) -> list[TrafficSignFeature]:
     """
     Query `map_features` for traffic_sign features in a bbox.
     Returns: [{id, object_value, geometry, lat, lon, bbox}, ...]
     bbox = (west_lon, south_lat, east_lon, north_lat)
     """
-    if tile_coords.z != 14:
-        raise ValueError(
-            f"Tile coordinates must be at zoom (z) level 14, got {tile_coords.z}"
-        )
+    if tile.z != 14:
+        raise ValueError(f"Tile coordinates must be at zoom (z) level 14, got {tile.z}")
     url = "https://tiles.mapillary.com/maps/vtp/mly_map_feature_traffic_sign/2/{z}/{x}/{y}?access_token={token}"
 
     out: list[TrafficSignFeature] = []
 
-    request_url = url.format(
-        z=tile_coords.z, x=tile_coords.x, y=tile_coords.y, token=MAP_CONFIG.TOKEN
-    )
+    request_url = url.format(z=tile.z, x=tile.x, y=tile.y, token=MAP_CONFIG.TOKEN)
     print("request_url:", request_url)
     status, data = call_map_api(request_url, raw_bytes=True)
     print("completed call_map_api, status:", status)
     if status != "ok" or not data:
         return out  # return what we have
     # Convert MVT to GeoJSON
-    geojson_data = vt_bytes_to_geojson(
-        data, tile_coords.x, tile_coords.y, tile_coords.z
-    )
+    geojson_data = vt_bytes_to_geojson(data, tile.x, tile.y, tile.z)
     print("Converted MVT to GeoJSON")
 
     # Parse features from GeoJSON
@@ -309,5 +303,12 @@ def get_images_by_id_and_type(
 
 
 if __name__ == "__main__":
-    tile_coords = TileCoords(z=14, x=4578, y=5979)
-    a = get_valid_ids_in_tile(tile_coords, ["regulatory--no-left-turn--g2"])
+    bbox_test = (
+        -79.4091796875,
+        43.644025847699496,
+        -79.38720703125,
+        43.659924074789096,
+    )
+    sample_tile_coords = Tile(z=14, x=4578, y=5979)
+    a = get_valid_ids_in_tile(sample_tile_coords, ["regulatory--no-left-turn--g2"])
+
