@@ -604,6 +604,7 @@ regulatory--wrong-way--g1
 regulatory--yield--g1
 regulatory--yield-or-stop-for-pedestrians--g1
 regulatory--your-speed--g1
+
 Information
 
 information--airport--g1
@@ -823,6 +824,7 @@ information--water-protection-zone--g1
 information--weight-and-height-limit--g1
 information--weight-limit--g1
 information--wireless-internet--g1
+
 Warning
 
 warning--accident-area--g1
@@ -1353,6 +1355,7 @@ warning--y-roads--g1
 warning--y-roads--g2
 warning--yield-ahead--g1
 warning--yield-ahead--g3
+
 Complementary
 
 complementary--accident-area--g1
@@ -1534,4 +1537,7 @@ complementary--when-snowy-or-rainy--g2
 complementary--when-wet--g1
 complementary--width-limit--g1
 complementary--working-days--g1
+
+Miscellaneous
+
 other-sign
