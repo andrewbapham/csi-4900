@@ -3,7 +3,7 @@ from PIL import ImageDraw
 import matplotlib.pyplot as plt
 import numpy as np
 
-from models import TileCoords
+from models import Tile
 
 # You'll likely want to trim these into smaller boxes and iterate on them
 # There is a limit on the number of signs you can get back in one query
@@ -11,10 +11,10 @@ from models import TileCoords
 
 # BBOX = (-76.1, 45.2, -75.4, 45.5) # OTTAWA
 # BBOX = (-80.0, 40.0, -79.0, 41.0) # PITTSBURGH
-TILE_COORDS = TileCoords(
+TILE_COORDS = Tile(
     z=14, x=4627, y=5938
 )  # somewhere in peterborough; 19 sign detections
-TILE_COORDS = TileCoords(z=14, x=4746, y=5867)  # somewhere in markham
+TILE_COORDS = Tile(z=14, x=4746, y=5867)  # somewhere in markham
 TARGET_SIGNS = None
 
 id_results = get_valid_ids_in_tile(TILE_COORDS, TARGET_SIGNS)
