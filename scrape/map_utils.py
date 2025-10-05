@@ -2,6 +2,8 @@ import io
 import base64
 import math
 import time
+import json
+import logging
 from typing import Any, Iterable, Optional, Sequence
 
 import requests
@@ -21,6 +23,13 @@ from models import (
 )
 from config import MAP_CONFIG
 from api import call_map_api
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+
+logger = logging.getLogger(__name__)
 
 
 # ----------------------------
@@ -95,7 +104,7 @@ def clamp_box(
 # Public functions
 # ----------------------------
 def get_valid_ids_in_tile(
-    tile: Tile, classes: Iterable[str]
+    tile: Tile, classes: Iterable[str] = None
 ) -> list[TrafficSignFeature]:
     """
     Query `map_features` for traffic_sign features in a bbox.
@@ -109,23 +118,24 @@ def get_valid_ids_in_tile(
     out: list[TrafficSignFeature] = []
 
     request_url = url.format(z=tile.z, x=tile.x, y=tile.y, token=MAP_CONFIG.TOKEN)
-    print("request_url:", request_url)
+    logger.debug("request_url: %s", request_url)
     status, data = call_map_api(request_url, raw_bytes=True)
-    print("completed call_map_api, status:", status)
+    logger.debug("completed call_map_api, status: %s", status)
     if status != "ok" or not data:
         return out  # return what we have
     # Convert MVT to GeoJSON
     geojson_data = vt_bytes_to_geojson(data, tile.x, tile.y, tile.z)
-    print("Converted MVT to GeoJSON")
+    logger.debug("Converted MVT to GeoJSON")
 
     # Parse features from GeoJSON
-    tile = MapboxTile.model_validate(geojson_data)
+    mapbox_tile = MapboxTile.model_validate(geojson_data)
 
-    print(f"found {len(tile.features)} features")
+    logger.info("found %d features for tile %s", len(mapbox_tile.features), str(tile))
     # return tile.features
     if classes:
-        return [f for f in tile.features if f.properties.value in classes]
-    return tile.features
+        return [f for f in mapbox_tile.features if f.properties.value in classes]
+    else:
+        return mapbox_tile.features
 
 
 def download_image(image: MapillaryImage) -> None:
@@ -186,7 +196,7 @@ def get_candidate_images(id_results: list[TrafficSignFeature]) -> list[Mapillary
                     candidate_ids.add(imeta["id"])
 
         except requests.RequestException as e:
-            print(f"[warn] feature {fid} fetch failed: {e}")
+            logger.warning("feature %s fetch failed: %s", fid, e)
             time.sleep(MAP_CONFIG.SLEEP_BETWEEN_PAGES)
     return candidates
 
@@ -204,7 +214,7 @@ def get_detections_by_image(image: MapillaryImage) -> list[MapillaryImageDetecti
         dr.raise_for_status()
         dets_raw = dr.json().get("data", []) or []
     except requests.RequestException as e:
-        print(f"[warn] detections fetch failed for image {image.id}: {e}")
+        logger.warning("detections fetch failed for image %s: %s", image.id, e)
         return []
     if not dets_raw:
         return []
@@ -242,19 +252,21 @@ def get_images_by_id_and_type(
     """
 
     candidates = get_candidate_images(id_results)
-    print(f"Found {len(candidates)} unique candidate images")
+    logger.info("Found %d unique candidate images", len(candidates))
     results: dict[int, MapillaryImageWithDetections] = {}
 
     for cand in candidates:
         dets = get_detections_by_image(cand)
         if not dets:
-            print(f"[warn] no detections found for {cand.id}")
+            logger.warning("no detections found for %s", cand.id)
             time.sleep(MAP_CONFIG.SLEEP_BETWEEN_PAGES)
             continue
 
-        print(f"Downloading image {cand.id}")
+        logger.info("Downloading image %s", cand.id)
         download_image(cand)
-        print(f"Image {cand.id} downloaded, size: {cand.width}x{cand.height}")
+        logger.info(
+            "Image %s downloaded, size: %dx%d", cand.id, cand.width, cand.height
+        )
 
         for det in dets:
             if not det.geometry:
@@ -373,7 +385,7 @@ def get_tiles_in_bbox(bbox: BBox, strict=False) -> list[Tile]:
 
 
 def get_valid_ids_in_bbox(
-    bbox: BBox, classes: Iterable[str], strict: bool = False
+    bbox: BBox, classes: Iterable[str] = None, strict: bool = False
 ) -> list[TrafficSignFeature]:
     """
     Query all tiles intersecting a bounding box and aggregate traffic sign features.

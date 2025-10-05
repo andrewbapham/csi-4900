@@ -1,10 +1,13 @@
 import time
 import random
+import logging
 from typing import Optional
 
 import requests
 
 from config import MAP_CONFIG
+
+logger = logging.getLogger(__name__)
 
 
 def _backoff_sleep(attempt: int) -> None:
@@ -17,12 +20,15 @@ def call_map_api(
     """GET with retry/backoff. Returns ("ok", json) | ("hard", None) | ("fail", None)."""
     for attempt in range(MAP_CONFIG.RETRY_TRIES):
         try:
-            print(
-                f"attempt {attempt} of {MAP_CONFIG.RETRY_TRIES} calling map_api with url: {url}"
+            logger.debug(
+                "attempt %d/%d calling map_api with url: %s",
+                attempt,
+                MAP_CONFIG.RETRY_TRIES,
+                url,
             )
             r = MAP_CONFIG.session.get(url, params=params, timeout=30)
             code = r.status_code
-            print("code:", code)
+            logger.debug("HTTP status code: %d", code)
             if code == 429 or 500 <= code < 600:
                 _backoff_sleep(attempt)
                 continue
@@ -33,7 +39,7 @@ def call_map_api(
                     err = r.json()
                 except requests.RequestException:
                     err = r.text
-                print(f"[hard] {code} {url} params={params} body={err}")
+                logger.warning("[hard] %d %s params=%s body=%s", code, url, params, err)
                 return "hard", None
 
             r.raise_for_status()
@@ -45,7 +51,7 @@ def call_map_api(
             _backoff_sleep(attempt)
             continue
         except requests.RequestException as e:
-            print(e)
+            logger.warning("Request failed: %s", e)
             _backoff_sleep(attempt)
             continue
 
