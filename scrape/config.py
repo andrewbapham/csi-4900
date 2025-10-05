@@ -15,10 +15,6 @@ class MAP_CONFIG:
     if not TOKEN:
         sys.exit("ERROR: set MAPILLARY_TOKEN (starts with 'MLY|...')")
 
-    # (kept for parity even if unused by these funcs)
-    DLON = 0.75
-    DLAT = 0.50
-
     # API politeness / retries
     SLEEP_BETWEEN_PAGES = 0.10
     RETRY_BASE_SLEEP = 1.0

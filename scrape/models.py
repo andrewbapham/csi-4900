@@ -12,6 +12,16 @@ class Tile(BaseModel):
         return f"({self.x}, {self.y}, {self.z})"
 
 
+class BBox(BaseModel):
+    west: float
+    south: float
+    east: float
+    north: float
+
+    def bbox(self) -> tuple[float, float, float, float]:
+        """return bounding box points (xMin, yMin, xMax, yMax)"""
+        return (self.west, self.south, self.east, self.north)
+
 
 # ----------------------------
 # Pydantic Models
