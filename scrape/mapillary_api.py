@@ -13,7 +13,6 @@ from models import (
     MapillaryImage,
     MapillaryImageDetection,
     MapillaryImageCreator,
-    MapillaryImageWithDetections,
     TrafficSignFeature,
     MapboxTile,
     Tile,
