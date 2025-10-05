@@ -16,9 +16,10 @@ class MAP_CONFIG:
         sys.exit("ERROR: set MAPILLARY_TOKEN (starts with 'MLY|...')")
 
     # API politeness / retries
-    SLEEP_BETWEEN_PAGES = 0.10
+    SLEEP_BETWEEN_PAGES = 0.05
     RETRY_BASE_SLEEP = 1.0
     RETRY_TRIES = 6
+    MAX_CONCURRENT_WORKERS = 8
 
     # Image selection
     MAX_IMAGES_PER_ID = 50
