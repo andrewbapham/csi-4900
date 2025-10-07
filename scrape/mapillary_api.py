@@ -2,6 +2,7 @@ import time
 import random
 import logging
 import io
+import os
 from typing import Any, Optional, Iterable
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -334,6 +335,13 @@ def save_images_with_detections_by_id(
     logger.info(
         "Found %d unique candidate images for %d ids", len(candidates), len(id_results)
     )
+
+    existing_image_set = set()
+    for entry in os.listdir(output_dir):
+        existing_image_set.add(entry)
+    logger.info("%d existing images", len(existing_image_set))
+    candidates = [cand for cand in candidates if str(cand.id) not in existing_image_set]
+    logger.info("found %d new candidate images", len(candidates))
 
     # get detections and their bboxes in each candidate image
     saved = 0
