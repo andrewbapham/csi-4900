@@ -10,6 +10,7 @@ import tqdm
 import requests
 from PIL import Image
 from vt2geojson.tools import vt_bytes_to_geojson
+import mapbox_vector_tile
 
 from config import MAP_CONFIG
 from models import (
@@ -400,6 +401,12 @@ def get_valid_ids_in_tile(
     geojson_data = vt_bytes_to_geojson(data, tile.x, tile.y, tile.z)
     logger.debug("Converted MVT to GeoJSON")
 
+    mvt_repr = mapbox_vector_tile.decode(data)
+    if "water" in mvt_repr:
+        logger.warning("tile %s is empty", str(tile))
+        # this is the representation of the tile when it is empty. wtf mapillary??
+        return []
+
     mapbox_tile = MapboxTile.model_validate(geojson_data)
     logger.info("found %d features for tile %s", len(mapbox_tile.features), str(tile))
 
@@ -425,7 +432,9 @@ def get_valid_ids_in_bbox(
     seen_ids: set[int] = set()
     results: list[TrafficSignFeature] = []
 
-    for tile_coords_item in tiles:
+    for tile_coords_item in tqdm.tqdm(
+        tiles, desc="Getting features in tiles", unit="tile"
+    ):
         feats = get_valid_ids_in_tile(tile_coords_item, classes)
         for f in feats:
             if f.id in seen_ids:

@@ -24,7 +24,7 @@ class MAP_CONFIG:
     # Image selection
     MAX_IMAGES_PER_ID = 50
     ASPECT_PANO_RATIO = 2.0  # width/height >= => treat as panoramic
-    REJECT_CT = {"spherical", "equirectangular", "fisheye"}
+    REJECT_CT = {"spherical", "equirectangular"}
 
     # Shared session with token
     session = requests.Session()
