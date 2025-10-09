@@ -173,7 +173,7 @@ def get_detections_by_image(image: MapillaryImage) -> list[MapillaryImageDetecti
     try:
         det_url = f"https://graph.mapillary.com/{image.id}/detections"
         det_params = {
-            "fields": "id,value,geometry,image{id,creator}",
+            "fields": "id,value,geometry,image{id,creator,width,height}",
         }
         dr = MAP_CONFIG.session.get(det_url, params=det_params, timeout=60)
         dr.raise_for_status()
@@ -201,6 +201,8 @@ def get_detections_by_image(image: MapillaryImage) -> list[MapillaryImageDetecti
         )
         for d in dets_raw
     ]
+    image.width = dets_raw[0].get("image", {}).get("width")
+    image.height = dets_raw[0].get("image", {}).get("height")
 
     return dets
 
@@ -270,7 +272,7 @@ def _save_image_with_detections(image: MapillaryImage, output_dir: str) -> None:
         logger.warning("no detections found for %s", image.id)
         return
 
-    download_image(image)
+    # download_image(image)
     logger.debug(
         "Image %s downloaded, size: %dx%d", image.id, image.width, image.height
     )
@@ -291,7 +293,8 @@ def _save_image_with_detections(image: MapillaryImage, output_dir: str) -> None:
                 )
             )
 
-    image.save_image_and_detections(f"{output_dir}/{image.id}")
+    # image.save_image_and_detections(f"{output_dir}/{image.id}")
+    image.save_detections(f"{output_dir}/{image.id}/{image.id}.json")
     # clear out to save mem when processing huge amounts of images
     image.image = None
     image.image_bytes = None
