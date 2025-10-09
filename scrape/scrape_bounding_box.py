@@ -13,10 +13,15 @@ from PIL import ImageDraw, Image
 import matplotlib.pyplot as plt
 import numpy as np
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+MONTREAL_BBOX = (-73.943481, 45.405380, -73.435364, 45.711154)
+
+LOG_LEVEL_MAP = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL,
+}
 
 
 def main():
@@ -26,7 +31,7 @@ def main():
         "--bbox",
         type=str,
         help=(
-            "Bounding box to scrape. Example: "
+            "Bounding box to scrape (west, south, east, north). Example: "
             "(-79.4091796875,43.644025847699496,-79.38720703125,43.659924074789096)"
         ),
     )
@@ -37,7 +42,14 @@ def main():
     )
     parser.add_argument("--show-images", action="store_true", help="Show images")
     parser.add_argument("--output-dir", "-o", type=str, help="Output directory")
+    parser.add_argument("--log-level", type=str, help="Log level", default="WARNING")
     args = parser.parse_args()
+
+    logging.basicConfig(
+        level=LOG_LEVEL_MAP[args.log_level],
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+    logger = logging.getLogger(__name__)
 
     bbox = None
     tile_coords = None
