@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 MONTREAL_BBOX = (-73.943481, 45.405380, -73.435364, 45.711154)
+# OTTAWA_BBOX = (-76.1, 45.2, -75.4, 45.5)
 
 LOG_LEVEL_MAP = {
     "DEBUG": logging.DEBUG,
@@ -41,7 +42,7 @@ def main():
         help="Tile coordinates to scrape (Z, X, Y). Example: (14, 4579, 5979)",
     )
     parser.add_argument("--show-images", action="store_true", help="Show images")
-    parser.add_argument("--output-dir", "-o", type=str, help="Output directory")
+    parser.add_argument("--output-dir", "-o", type=str, help="Output directory" default="images")
     parser.add_argument("--log-level", type=str, help="Log level", default="WARNING")
     args = parser.parse_args()
 
@@ -64,7 +65,7 @@ def main():
         tile_coords = Tile(z=tile_coords[0], x=tile_coords[1], y=tile_coords[2])
         ids = get_valid_ids_in_tile(tile_coords)
 
-    output_dir = args.output_dir or "images"
+    output_dir = args.output_dir
 
     print(f"found {len(ids)} detection ids")
     images_with_detections = save_images_with_detections_by_id(ids, output_dir)
