@@ -42,7 +42,9 @@ def main():
         help="Tile coordinates to scrape (Z, X, Y). Example: (14, 4579, 5979)",
     )
     parser.add_argument("--show-images", action="store_true", help="Show images")
-    parser.add_argument("--output-dir", "-o", type=str, help="Output directory" default="images")
+    parser.add_argument(
+        "--output-dir", "-o", type=str, help="Output directory", default="images"
+    )
     parser.add_argument("--log-level", type=str, help="Log level", default="WARNING")
     args = parser.parse_args()
 
