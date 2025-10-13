@@ -82,6 +82,8 @@
   overflow-y: auto;
   min-width: 250px;
   max-width: calc(100vw - 200px);
+  height: 100vh;
+  padding-top: 1rem;
 }
 
 .upload-section {
@@ -105,6 +107,44 @@
   width: 100%;
   max-width: 200px;
   align-self: flex-start;
+}
+
+.image-gallery-section {
+  padding: 1.5rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.pagination-controls {
+  padding: 1rem;
+  border-top: 1px solid #e0e0e0;
+  background: #f8f9fa;
+}
+
+.pagination-info {
+  text-align: center;
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 0.5rem;
+}
+
+.pagination-buttons {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.btn-sm {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  border-radius: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.btn-sm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .metadata-section {
@@ -145,9 +185,8 @@
 }
 
 .annotations-section {
-  flex: 1;
   padding: 1.5rem;
-  overflow-y: auto;
+  padding-bottom: 2rem;
 }
 
 .annotations-section h3 {
@@ -288,7 +327,8 @@
 .zoom-controls-overlay {
   position: fixed;
   top: 20px;
-  right: 20px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -326,22 +366,28 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   background: white;
   overflow: auto;
-  display: flex;
-  justify-content: flex-end;
-  align-items: flex-end;
   position: relative;
+  cursor: grab;
+  user-select: none;
+}
+
+.canvas-wrapper:active {
+  cursor: grabbing;
 }
 
 .image-container {
   position: relative;
   display: inline-block;
   transition: transform 0.2s ease;
+  margin: 0;
+  width: fit-content;
+  height: fit-content;
 }
 
 .base-image {
   display: block;
-  max-width: 100%;
-  max-height: 70vh;
+  max-width: none;
+  max-height: none;
 }
 
 .annotation-canvas {

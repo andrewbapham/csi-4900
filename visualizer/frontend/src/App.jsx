@@ -1,70 +1,54 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Download, Settings, CheckCircle, XCircle, Edit3, Save, ZoomIn, ZoomOut, RotateCcw, Maximize } from 'lucide-react';
-import ImageGallery from './components/ImageGallery.jsx';
-import { FTPClient, matchImageWithAnnotations } from './utils/ftpClient';
+import React, { useEffect } from 'react';
+import { formatClassName, getClassColor, getContrastColor } from './utils/annotationUtils';
+import { useImageState } from './hooks/useImageState';
+import { useAPIState } from './hooks/useAPIState';
+import { useUIState } from './hooks/useUIState';
+import { useImageOperations } from './hooks/useImageOperations';
+import { useAnnotationOperations } from './hooks/useAnnotationOperations';
+import { useZoomOperations } from './hooks/useZoomOperations';
+import Sidebar from './components/Sidebar';
+import ImageViewer from './components/ImageViewer';
 import './App.css';
 
 const App = () => {
-  const [currentImage, setCurrentImage] = useState(null);
-  const [annotations, setAnnotations] = useState([]);
-  const [imageList, setImageList] = useState([]);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [isValidating, setIsValidating] = useState(false);
-  const [editingAnnotation, setEditingAnnotation] = useState(null);
-  const [ftpConfig, setFtpConfig] = useState({
-    host: '',
-    username: '',
-    password: '',
-    port: 21
+  // State management hooks
+  const imageState = useImageState();
+  const apiState = useAPIState();
+  const uiState = useUIState();
+
+  // Destructure state for easier access
+  const {
+    currentImage, setCurrentImage, annotations, setAnnotations,
+    currentImageIndex, setCurrentImageIndex, currentImageMetadata, setCurrentImageMetadata,
+    hoveredAnnotation, setHoveredAnnotation, selectedAnnotation, setSelectedAnnotation,
+    editingAnnotation, setEditingAnnotation, zoom, setZoom, panOffset, setPanOffset,
+    isPanning, setIsPanning, lastPanPoint, setLastPanPoint,
+    canvasRef, fileInputRef, jsonInputRef, canvasWrapperRef
+  } = imageState;
+
+  const {
+    apiImages, setApiImages, currentImageId, setCurrentImageId, apiBaseUrl,
+    pagination, setPagination, currentPage, setCurrentPage, loadingImages, setLoadingImages
+  } = apiState;
+
+  const {
+    isValidating, setIsValidating, loading, setLoading, error, setError,
+    sidebarWidth, setSidebarWidth, isDragging, setIsDragging
+  } = uiState;
+
+  // Operation hooks
+  const imageOperations = useImageOperations({
+    setAnnotations, setZoom, setPanOffset, setCurrentImageMetadata,
+    setHoveredAnnotation, setSelectedAnnotation, setCurrentImage, setError, setCurrentImageIndex
   });
-  const [showFtpConfig, setShowFtpConfig] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [zoom, setZoom] = useState(1);
-  const [ftpClient, setFtpClient] = useState(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const [currentImageMetadata, setCurrentImageMetadata] = useState(null);
-  const [hoveredAnnotation, setHoveredAnnotation] = useState(null);
-  const [selectedAnnotation, setSelectedAnnotation] = useState(null);
-  const [sidebarWidth, setSidebarWidth] = useState(350);
-  const [isDragging, setIsDragging] = useState(false);
 
-  const canvasRef = useRef(null);
-  const fileInputRef = useRef(null);
-  const jsonInputRef = useRef(null);
+  const annotationOperations = useAnnotationOperations({
+    annotations, setAnnotations, setEditingAnnotation
+  });
 
-  // Color palette for different classes - optimized for contrast
-  const colors = [
-    '#E74C3C', '#3498DB', '#2ECC71', '#F39C12', '#9B59B6',
-    '#1ABC9C', '#34495E', '#E67E22', '#8E44AD', '#27AE60'
-  ];
-
-  const getClassColor = (className) => {
-    const index = className.charCodeAt(0) % colors.length;
-    return colors[index];
-  };
-
-  const getContrastColor = (backgroundColor) => {
-    // Convert hex to RGB
-    const hex = backgroundColor.replace('#', '');
-    const r = parseInt(hex.substr(0, 2), 16);
-    const g = parseInt(hex.substr(2, 2), 16);
-    const b = parseInt(hex.substr(4, 2), 16);
-    
-    // Calculate luminance
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    
-    // Return black for light backgrounds, white for dark backgrounds
-    return luminance > 0.5 ? '#000000' : '#ffffff';
-  };
-
-  const formatClassName = (className) => {
-    // Convert Mapillary format (regulatory--stop--g1) to readable format
-    return className
-      .split('--')
-      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(' ');
-  };
+  const zoomOperations = useZoomOperations({
+    zoom, setZoom, setPanOffset, canvasWrapperRef, currentImage
+  });
 
   // Load image and draw annotations
   useEffect(() => {
@@ -81,15 +65,15 @@ const App = () => {
           case '=':
           case '+':
             event.preventDefault();
-            handleZoomIn();
+            zoomOperations.handleZoomIn();
             break;
           case '-':
             event.preventDefault();
-            handleZoomOut();
+            zoomOperations.handleZoomOut();
             break;
           case '0':
             event.preventDefault();
-            handleResetZoom();
+            zoomOperations.handleResetZoom();
             break;
         }
       }
@@ -97,32 +81,7 @@ const App = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [zoom]);
-
-  const calculateOptimalZoom = (imgWidth, imgHeight) => {
-    const canvasWrapper = document.querySelector('.canvas-wrapper');
-    if (!canvasWrapper) return 1;
-    
-    const containerWidth = canvasWrapper.clientWidth - 60; // Account for padding and positioning
-    const containerHeight = canvasWrapper.clientHeight - 60; // Account for padding and positioning
-    
-    const scaleX = containerWidth / imgWidth;
-    const scaleY = containerHeight / imgHeight;
-    
-    // Use the smaller scale to ensure the image fits completely
-    const optimalScale = Math.min(scaleX, scaleY, 1); // Don't scale up beyond 100%
-    
-    return Math.max(optimalScale, 0.1); // Minimum 10% zoom
-  };
-
-  const scrollToImage = () => {
-    const canvasWrapper = document.querySelector('.canvas-wrapper');
-    if (canvasWrapper) {
-      // Scroll to bottom-right to show the image
-      canvasWrapper.scrollTop = canvasWrapper.scrollHeight - canvasWrapper.clientHeight;
-      canvasWrapper.scrollLeft = canvasWrapper.scrollWidth - canvasWrapper.clientWidth;
-    }
-  };
+  }, [zoomOperations]);
 
   const drawAnnotations = () => {
     const canvas = canvasRef.current;
@@ -130,29 +89,29 @@ const App = () => {
 
     const ctx = canvas.getContext('2d');
     const img = new Image();
-    
+
     img.onload = () => {
       // Set canvas size to match image
       canvas.width = img.width;
       canvas.height = img.height;
-      
+
       // Calculate and set optimal zoom for first load
       if (zoom === 1) {
-        const optimalZoom = calculateOptimalZoom(img.width, img.height);
+        const optimalZoom = zoomOperations.calculateOptimalZoom(img.width, img.height);
         setZoom(optimalZoom);
-        
+
         // Scroll to show the image after a short delay to allow zoom to apply
         setTimeout(() => {
-          scrollToImage();
+          zoomOperations.scrollToImage();
         }, 100);
       }
-      
+
       // Clear canvas completely
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
+
       // Draw image
       ctx.drawImage(img, 0, 0);
-      
+
       // Only draw annotations if there are any
       if (annotations.length > 0) {
         annotations.forEach((annotation, index) => {
@@ -160,28 +119,28 @@ const App = () => {
           const color = getClassColor(className);
           const isHovered = hoveredAnnotation === index;
           const isSelected = selectedAnnotation === index;
-          
+
           // Draw highlight background for hovered/selected annotations
           if (isHovered || isSelected) {
             ctx.fillStyle = isSelected ? 'rgba(255, 255, 0, 0.3)' : 'rgba(255, 255, 255, 0.3)';
             ctx.fillRect(x - 2, y - 2, width + 4, height + 4);
           }
-          
+
           // Draw bounding box with enhanced style for hovered/selected
           ctx.strokeStyle = color;
           ctx.lineWidth = isHovered || isSelected ? 4 : 2;
           ctx.strokeRect(x, y, width, height);
-          
+
           // Draw label background
           const formattedClassName = formatClassName(className);
           const labelText = `${formattedClassName}${confidence && confidence < 1 ? ` (${(confidence * 100).toFixed(1)}%)` : ''}`;
           const textMetrics = ctx.measureText(labelText);
           const labelWidth = textMetrics.width + 8;
           const labelHeight = 20;
-          
+
           ctx.fillStyle = color;
           ctx.fillRect(x, y - labelHeight, labelWidth, labelHeight);
-          
+
           // Draw label text with high contrast color
           const textColor = getContrastColor(color);
           ctx.fillStyle = textColor;
@@ -190,211 +149,61 @@ const App = () => {
         });
       }
     };
-    
+
     img.src = currentImage;
   };
 
-  const handleImageUpload = (event) => {
-    const file = event.target.files[0];
-    if (file && file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        // Clear previous annotations and reset zoom
-        setAnnotations([]);
-        setZoom(1);
-        setCurrentImageMetadata(null);
-        setHoveredAnnotation(null);
-        setSelectedAnnotation(null);
-        setCurrentImage(e.target.result);
-        setError(null);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  // Use the operations from hooks
+  const { handleImageUpload, handleJsonUpload } = imageOperations;
 
-  const handleJsonUpload = (event) => {
-    const file = event.target.files[0];
-    if (file && file.type === 'application/json') {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const data = JSON.parse(e.target.result);
-          // Handle Mapillary annotation format
-          if (data.detections && Array.isArray(data.detections)) {
-            const processedAnnotations = data.detections.map(detection => ({
-              id: detection.id,
-              x: detection.bbox[0], // x1
-              y: detection.bbox[1], // y1
-              width: detection.bbox[2] - detection.bbox[0], // x2 - x1
-              height: detection.bbox[3] - detection.bbox[1], // y2 - y1
-              class: detection.value,
-              confidence: 1.0, // Mapillary doesn't provide confidence scores
-              imageId: detection.image_id
-            }));
-            setAnnotations(processedAnnotations);
-            
-            // Store image metadata
-            if (data.width && data.height) {
-              setCurrentImageMetadata({
-                width: data.width,
-                height: data.height,
-                lat: data.lat,
-                lon: data.lon,
-                creator: data.creator,
-                cameraType: data.camera_type,
-                sequence: data.sequence
-              });
-            }
-          } else {
-            // Fallback to simple format
-            setAnnotations(data);
-          }
-          setError(null);
-        } catch (err) {
-          setError('Invalid JSON file format');
-        }
-      };
-      reader.readAsText(file);
-    }
-  };
 
-  const handleFtpConnect = async () => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const client = new FTPClient(ftpConfig);
-      const result = await client.connect();
-      
-      if (result.success) {
-        setFtpClient(client);
-        setIsConnected(true);
-        
-        // Load file list
-        const files = await client.listFiles();
-        const imageFiles = files.filter(f => f.type === 'file' && /\.(jpg|jpeg|png|gif)$/i.test(f.name));
-        const jsonFiles = files.filter(f => f.type === 'file' && f.name.endsWith('.json'));
-        
-        const matches = matchImageWithAnnotations(imageFiles, jsonFiles);
-        setImageList(matches);
-        
-        if (matches.length > 0) {
-          await loadImageFromFtp(0);
-        }
-      } else {
-        setError(result.message);
-      }
-    } catch (err) {
-      setError('Failed to connect to FTP server: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Use annotation operations from hooks
+  const { validateAnnotation, invalidateAnnotation, editAnnotation, saveAnnotationEdit, deleteAnnotation } = annotationOperations;
 
-  const loadImageFromFtp = async (index) => {
-    if (!ftpClient || !imageList[index]) return;
-    
-    setLoading(true);
-    try {
-      const imageData = imageList[index];
-      const imageFile = await ftpClient.downloadFile(imageData.image.name);
-      const jsonFile = await ftpClient.downloadFile(imageData.annotations.name);
-      
-      // In a real implementation, you would process the downloaded files
-      // For now, we'll simulate loading
-      setCurrentImage(`data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=`);
-      
-      // Mock annotations data
-      const mockAnnotations = [
-        { x: 100, y: 100, width: 200, height: 150, class: 'person', confidence: 0.95 },
-        { x: 300, y: 200, width: 150, height: 100, class: 'car', confidence: 0.87 }
-      ];
-      setAnnotations(mockAnnotations);
-      
-      setCurrentImageIndex(index);
-    } catch (err) {
-      setError('Failed to load image: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const validateAnnotation = (index) => {
-    const updatedAnnotations = [...annotations];
-    updatedAnnotations[index].validated = true;
-    setAnnotations(updatedAnnotations);
-  };
-
-  const invalidateAnnotation = (index) => {
-    const updatedAnnotations = [...annotations];
-    updatedAnnotations[index].validated = false;
-    setAnnotations(updatedAnnotations);
-  };
-
-  const editAnnotation = (index) => {
-    setEditingAnnotation(index);
-  };
-
-  const saveAnnotationEdit = (index, newClass) => {
-    const updatedAnnotations = [...annotations];
-    updatedAnnotations[index].class = newClass;
-    setAnnotations(updatedAnnotations);
-    setEditingAnnotation(null);
-  };
-
-  const deleteAnnotation = (index) => {
-    const updatedAnnotations = annotations.filter((_, i) => i !== index);
-    setAnnotations(updatedAnnotations);
-  };
-
-  const nextImage = () => {
-    if (currentImageIndex < imageList.length - 1) {
+  const nextImage = async () => {
+    if (apiImages.length > 0) {
       const nextIndex = currentImageIndex + 1;
-      // Clear previous annotations and reset zoom
-      setAnnotations([]);
-      setZoom(1);
-      setCurrentImageMetadata(null);
-      setHoveredAnnotation(null);
-      setSelectedAnnotation(null);
-      
-      if (isConnected && ftpClient) {
-        loadImageFromFtp(nextIndex);
-      } else {
+
+      // If we're at the end of current page and there's a next page, load it
+      if (nextIndex >= apiImages.length && pagination?.has_next) {
+        await loadApiImages(currentPage + 1);
+        // After loading new page, load the first image
+        if (apiImages.length > 0) {
+          setCurrentImageIndex(0);
+          loadImageFromApi(apiImages[0]);
+        }
+      } else if (nextIndex < apiImages.length) {
         setCurrentImageIndex(nextIndex);
+        loadImageFromApi(apiImages[nextIndex]);
       }
     }
   };
 
-  const prevImage = () => {
-    if (currentImageIndex > 0) {
+  const prevImage = async () => {
+    if (apiImages.length > 0) {
       const prevIndex = currentImageIndex - 1;
-      // Clear previous annotations and reset zoom
-      setAnnotations([]);
-      setZoom(1);
-      setCurrentImageMetadata(null);
-      setHoveredAnnotation(null);
-      setSelectedAnnotation(null);
-      
-      if (isConnected && ftpClient) {
-        loadImageFromFtp(prevIndex);
-      } else {
+
+      // If we're at the beginning of current page and there's a previous page, load it
+      if (prevIndex < 0 && pagination?.has_prev) {
+        await loadApiImages(currentPage - 1);
+        // After loading new page, load the last image
+        if (apiImages.length > 0) {
+          setCurrentImageIndex(apiImages.length - 1);
+          loadImageFromApi(apiImages[apiImages.length - 1]);
+        }
+      } else if (prevIndex >= 0) {
         setCurrentImageIndex(prevIndex);
+        loadImageFromApi(apiImages[prevIndex]);
       }
     }
   };
 
   const handleImageSelect = (index) => {
-    // Clear previous annotations and reset zoom when switching images
-    setAnnotations([]);
-    setZoom(1);
-    setCurrentImageMetadata(null);
-    setHoveredAnnotation(null);
-    setSelectedAnnotation(null);
-    
-    if (isConnected && ftpClient) {
-      loadImageFromFtp(index);
-    } else {
+    imageOperations.clearImageState();
+
+    if (apiImages.length > 0) {
       setCurrentImageIndex(index);
+      loadImageFromApi(apiImages[index]);
     }
   };
 
@@ -403,33 +212,8 @@ const App = () => {
     console.log('Downloading:', imageData);
   };
 
-  const handleZoomIn = () => {
-    setZoom(prev => Math.min(prev * 1.2, 5));
-  };
-
-  const handleZoomOut = () => {
-    setZoom(prev => Math.max(prev / 1.2, 0.1));
-  };
-
-  const handleResetZoom = () => {
-    setZoom(1);
-  };
-
-  const handleFitToScreen = () => {
-    if (currentImage) {
-      const img = new Image();
-      img.onload = () => {
-        const optimalZoom = calculateOptimalZoom(img.width, img.height);
-        setZoom(optimalZoom);
-        
-        // Scroll to show the image after zoom
-        setTimeout(() => {
-          scrollToImage();
-        }, 100);
-      };
-      img.src = currentImage;
-    }
-  };
+  // Use zoom operations from hooks
+  const { handleZoomIn, handleZoomOut, handleResetZoom, handleFitToScreen } = zoomOperations;
 
   const handleMouseDown = (e) => {
     setIsDragging(true);
@@ -449,6 +233,45 @@ const App = () => {
     setIsDragging(false);
   };
 
+  // Pan functionality for canvas
+  const handleCanvasMouseDown = (e) => {
+    if (e.button === 0) { // Left mouse button
+      setIsPanning(true);
+      setLastPanPoint({ x: e.clientX, y: e.clientY });
+      e.preventDefault();
+    }
+  };
+
+  const handleCanvasMouseMove = (e) => {
+    if (isPanning) {
+      const deltaX = e.clientX - lastPanPoint.x;
+      const deltaY = e.clientY - lastPanPoint.y;
+
+      const canvasWrapper = canvasWrapperRef.current;
+      if (canvasWrapper) {
+        const newScrollLeft = canvasWrapper.scrollLeft - deltaX;
+        const newScrollTop = canvasWrapper.scrollTop - deltaY;
+
+        // Constrain scrolling to prevent over-scrolling
+        const maxScrollLeft = canvasWrapper.scrollWidth - canvasWrapper.clientWidth;
+        const maxScrollTop = canvasWrapper.scrollHeight - canvasWrapper.clientHeight;
+
+        canvasWrapper.scrollLeft = Math.max(0, Math.min(newScrollLeft, maxScrollLeft));
+        canvasWrapper.scrollTop = Math.max(0, Math.min(newScrollTop, maxScrollTop));
+      }
+
+      setLastPanPoint({ x: e.clientX, y: e.clientY });
+    }
+  };
+
+  const handleCanvasMouseUp = () => {
+    setIsPanning(false);
+  };
+
+  const handleCanvasMouseLeave = () => {
+    setIsPanning(false);
+  };
+
   useEffect(() => {
     if (isDragging) {
       document.addEventListener('mousemove', handleMouseMove);
@@ -460,286 +283,196 @@ const App = () => {
     }
   }, [isDragging]);
 
+  // Add panning event listeners
+  useEffect(() => {
+    if (isPanning) {
+      document.addEventListener('mousemove', handleCanvasMouseMove);
+      document.addEventListener('mouseup', handleCanvasMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleCanvasMouseMove);
+        document.removeEventListener('mouseup', handleCanvasMouseUp);
+      };
+    }
+  }, [isPanning, lastPanPoint]);
+
+  // Load images from API on component mount
+  useEffect(() => {
+    loadApiImages();
+  }, []);
+
+  // Add wheel event listener for zoom
+  useEffect(() => {
+    const canvasWrapper = canvasWrapperRef.current;
+    if (canvasWrapper) {
+      const handleWheel = (e) => {
+        if (e.ctrlKey && currentImage) {
+          e.preventDefault();
+          e.stopPropagation();
+
+          const delta = e.deltaY > 0 ? 0.9 : 1.1;
+          const newZoom = Math.max(0.1, Math.min(5, zoom * delta));
+
+          if (newZoom !== zoom) {
+            setZoom(newZoom);
+          }
+        }
+      };
+
+      canvasWrapper.addEventListener('wheel', handleWheel, { passive: false });
+      return () => canvasWrapper.removeEventListener('wheel', handleWheel);
+    }
+  }, [currentImage, zoom]);
+
+  const loadApiImages = async (page = 1) => {
+    try {
+      setLoadingImages(true);
+      const response = await fetch(`${apiBaseUrl}/api/images?page=${page}&limit=10`);
+      if (response.ok) {
+        const data = await response.json();
+        setApiImages(data.image_ids);
+        setPagination(data.pagination);
+        setCurrentPage(page);
+        if (data.image_ids.length > 0) {
+          setCurrentImageIndex(0);
+          setCurrentImageId(data.image_ids[0]);
+        }
+      } else {
+        setError('Failed to load images from API');
+      }
+    } catch (err) {
+      setError('Error connecting to API: ' + err.message);
+    } finally {
+      setLoadingImages(false);
+    }
+  };
+
+  const loadImageFromApi = async (imageId) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Load image
+      const imageUrl = `${apiBaseUrl}/api/images/${imageId}`;
+      setCurrentImage(imageUrl);
+      setCurrentImageId(imageId);
+
+      // Load annotations
+      const annotationsResponse = await fetch(`${apiBaseUrl}/api/images/${imageId}/annotations`);
+      if (annotationsResponse.ok) {
+        const annotationData = await annotationsResponse.json();
+
+        if (annotationData.detections && Array.isArray(annotationData.detections)) {
+          const processedAnnotations = annotationData.detections.map(detection => ({
+            id: detection.id,
+            x: detection.bbox[0],
+            y: detection.bbox[1],
+            width: detection.bbox[2] - detection.bbox[0],
+            height: detection.bbox[3] - detection.bbox[1],
+            class: detection.value,
+            confidence: 1.0,
+            imageId: detection.image_id
+          }));
+          setAnnotations(processedAnnotations);
+
+          if (annotationData.width && annotationData.height) {
+            setCurrentImageMetadata({
+              width: annotationData.width,
+              height: annotationData.height,
+              lat: annotationData.lat,
+              lon: annotationData.lon,
+              creator: annotationData.creator,
+              cameraType: annotationData.camera_type,
+              sequence: annotationData.sequence
+            });
+          }
+        } else {
+          setAnnotations(annotationData);
+        }
+      } else {
+        setAnnotations([]);
+        setCurrentImageMetadata(null);
+      }
+
+      setZoom(1);
+      setPanOffset({ x: 0, y: 0 });
+      setHoveredAnnotation(null);
+      setSelectedAnnotation(null);
+
+    } catch (err) {
+      setError('Error loading image: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="app">
       <header className="app-header">
         <h1>Annotation Visualizer</h1>
-        <div className="header-controls">
-          <button 
-            className="btn btn-secondary"
-            onClick={() => setShowFtpConfig(!showFtpConfig)}
-          >
-            <Settings size={16} />
-            FTP Settings
-          </button>
-        </div>
       </header>
 
-      {showFtpConfig && (
-        <div className="ftp-config">
-          <h3>FTP Configuration</h3>
-          <div className="form-group">
-            <input
-              type="text"
-              placeholder="Host"
-              value={ftpConfig.host}
-              onChange={(e) => setFtpConfig({...ftpConfig, host: e.target.value})}
-            />
-            <input
-              type="text"
-              placeholder="Username"
-              value={ftpConfig.username}
-              onChange={(e) => setFtpConfig({...ftpConfig, username: e.target.value})}
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              value={ftpConfig.password}
-              onChange={(e) => setFtpConfig({...ftpConfig, password: e.target.value})}
-            />
-            <input
-              type="number"
-              placeholder="Port"
-              value={ftpConfig.port}
-              onChange={(e) => setFtpConfig({...ftpConfig, port: parseInt(e.target.value)})}
-            />
-            <button 
-              className="btn btn-primary"
-              onClick={handleFtpConnect}
-              disabled={loading}
-            >
-              {loading ? 'Connecting...' : 'Connect'}
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="main-content">
-        <div className="sidebar" style={{ width: `${sidebarWidth}px` }}>
-          <div className="upload-section">
-            <h3>Load Data</h3>
-            <div className="upload-buttons">
-              <button 
-                className="btn btn-primary"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload size={16} />
-                Load Image
-              </button>
-              <button 
-                className="btn btn-primary"
-                onClick={() => jsonInputRef.current?.click()}
-              >
-                <Upload size={16} />
-                Load Annotations
-              </button>
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              style={{ display: 'none' }}
-            />
-            <input
-              ref={jsonInputRef}
-              type="file"
-              accept=".json"
-              onChange={handleJsonUpload}
-              style={{ display: 'none' }}
-            />
-          </div>
+        <Sidebar
+          sidebarWidth={sidebarWidth}
+          apiImages={apiImages}
+          currentImageIndex={currentImageIndex}
+          apiBaseUrl={apiBaseUrl}
+          pagination={pagination}
+          currentPage={currentPage}
+          loadingImages={loadingImages}
+          loadApiImages={loadApiImages}
+          handleImageSelect={handleImageSelect}
+          handleDownload={handleDownload}
+          fileInputRef={fileInputRef}
+          jsonInputRef={jsonInputRef}
+          handleImageUpload={handleImageUpload}
+          handleJsonUpload={handleJsonUpload}
+          loadImageFromApi={loadImageFromApi}
+          loading={loading}
+          currentImageMetadata={currentImageMetadata}
+          annotations={annotations}
+          hoveredAnnotation={hoveredAnnotation}
+          setHoveredAnnotation={setHoveredAnnotation}
+          selectedAnnotation={selectedAnnotation}
+          setSelectedAnnotation={setSelectedAnnotation}
+          editingAnnotation={editingAnnotation}
+          editAnnotation={editAnnotation}
+          saveAnnotationEdit={saveAnnotationEdit}
+          validateAnnotation={validateAnnotation}
+          invalidateAnnotation={invalidateAnnotation}
+          formatClassName={formatClassName}
+        />
 
-          {imageList.length > 0 && (
-            <ImageGallery
-              images={imageList}
-              currentIndex={currentImageIndex}
-              onImageSelect={handleImageSelect}
-              onDownload={handleDownload}
-            />
-          )}
-
-          <div className="metadata-section">
-            <h3>Image Metadata</h3>
-            {currentImageMetadata ? (
-              <div className="metadata-info">
-                <div className="metadata-item">
-                  <strong>Dimensions:</strong> {currentImageMetadata.width} × {currentImageMetadata.height}
-                </div>
-                <div className="metadata-item">
-                  <strong>Location:</strong> {currentImageMetadata.lat?.toFixed(6)}, {currentImageMetadata.lon?.toFixed(6)}
-                </div>
-                <div className="metadata-item">
-                  <strong>Camera:</strong> {currentImageMetadata.cameraType}
-                </div>
-                {currentImageMetadata.creator && (
-                  <div className="metadata-item">
-                    <strong>Creator:</strong> {currentImageMetadata.creator.username}
-                  </div>
-                )}
-                {currentImageMetadata.sequence && (
-                  <div className="metadata-item">
-                    <strong>Sequence:</strong> {currentImageMetadata.sequence}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="metadata-placeholder">
-                Upload annotations to view metadata
-              </div>
-            )}
-          </div>
-
-          <div className="annotations-section">
-            <h3>Annotations ({annotations.length})</h3>
-            <div className="annotations-list">
-              {annotations.map((annotation, index) => (
-                <div 
-                  key={annotation.id || index} 
-                  className={`annotation-item ${annotation.validated ? 'validated' : ''} ${hoveredAnnotation === index ? 'hovered' : ''} ${selectedAnnotation === index ? 'selected' : ''}`}
-                  onMouseEnter={() => setHoveredAnnotation(index)}
-                  onMouseLeave={() => setHoveredAnnotation(null)}
-                  onClick={() => setSelectedAnnotation(selectedAnnotation === index ? null : index)}
-                >
-                  <div className="annotation-main">
-                    <div className="annotation-info">
-                      <span className="class-name">{formatClassName(annotation.class)}</span>
-                      {annotation.confidence && annotation.confidence < 1 && (
-                        <span className="confidence">{(annotation.confidence * 100).toFixed(1)}%</span>
-                      )}
-                      <span className="raw-class">({annotation.class})</span>
-                    </div>
-                    <div className="annotation-actions">
-                      {editingAnnotation === index ? (
-                        <button 
-                          className="btn-icon"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            saveAnnotationEdit(index, document.querySelector('.edit-form input').value);
-                          }}
-                          title="Save"
-                        >
-                          <Save size={14} />
-                        </button>
-                      ) : (
-                        <>
-                          <button 
-                            className="btn-icon"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              editAnnotation(index);
-                            }}
-                            title="Edit class"
-                          >
-                            <Edit3 size={14} />
-                          </button>
-                          <button 
-                            className="btn-icon"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              validateAnnotation(index);
-                            }}
-                            title="Validate"
-                          >
-                            <CheckCircle size={14} />
-                          </button>
-                          <button 
-                            className="btn-icon"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              invalidateAnnotation(index);
-                            }}
-                            title="Invalidate"
-                          >
-                            <XCircle size={14} />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  {editingAnnotation === index && (
-                    <div className="edit-form">
-                      <input
-                        type="text"
-                        defaultValue={annotation.class}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter') {
-                            saveAnnotationEdit(index, e.target.value);
-                          }
-                        }}
-                        autoFocus
-                      />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div 
+        <div
           className="resize-handle"
           onMouseDown={handleMouseDown}
         ></div>
 
-        <div className="canvas-container">
-          {currentImage ? (
-            <div className="image-viewer">
-              <div className="canvas-wrapper">
-                <div 
-                  className="image-container"
-                  style={{ 
-                    transform: `scale(${zoom})`,
-                    transformOrigin: 'center center'
-                  }}
-                >
-                  <img 
-                    src={currentImage} 
-                    alt="Annotated image"
-                    className="base-image"
-                    onLoad={drawAnnotations}
-                  />
-                  <canvas 
-                    ref={canvasRef} 
-                    className="annotation-canvas"
-                  />
-                </div>
-                
-                {/* Overlay Controls */}
-                <div className="zoom-controls-overlay">
-                  <button className="btn-icon" onClick={handleZoomOut} title="Zoom Out (Ctrl+-)">
-                    <ZoomOut size={16} />
-                  </button>
-                  <button className="btn-icon" onClick={handleFitToScreen} title="Fit to Screen">
-                    <Maximize size={16} />
-                  </button>
-                  <span className="zoom-percentage">{Math.round(zoom * 100)}%</span>
-                  <button className="btn-icon" onClick={handleZoomIn} title="Zoom In (Ctrl++)">
-                    <ZoomIn size={16} />
-                  </button>
-                  <button className="btn-icon" onClick={handleResetZoom} title="Reset Zoom (Ctrl+0)">
-                    <RotateCcw size={16} />
-                  </button>
-                </div>
-                
-                <div className="image-controls-overlay">
-                  <button onClick={prevImage} disabled={currentImageIndex === 0}>
-                    Previous
-                  </button>
-                  <span>{currentImageIndex + 1} / {imageList.length || 1}</span>
-                  <button onClick={nextImage} disabled={currentImageIndex >= imageList.length - 1}>
-                    Next
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="placeholder">
-              <Upload size={64} />
-              <p>Load an image to get started</p>
-            </div>
-          )}
-        </div>
+        <ImageViewer
+          currentImage={currentImage}
+          canvasRef={canvasRef}
+          canvasWrapperRef={canvasWrapperRef}
+          zoom={zoom}
+          isPanning={isPanning}
+          currentImageIndex={currentImageIndex}
+          apiImages={apiImages}
+          apiBaseUrl={apiBaseUrl}
+          pagination={pagination}
+          currentPage={currentPage}
+          loadingImages={loadingImages}
+          loadApiImages={loadApiImages}
+          handleImageSelect={handleImageSelect}
+          handleDownload={handleDownload}
+          handleCanvasMouseDown={handleCanvasMouseDown}
+          handleCanvasMouseLeave={handleCanvasMouseLeave}
+          handleZoomIn={handleZoomIn}
+          handleZoomOut={handleZoomOut}
+          handleResetZoom={handleResetZoom}
+          handleFitToScreen={handleFitToScreen}
+          prevImage={prevImage}
+          nextImage={nextImage}
+          drawAnnotations={drawAnnotations}
+        />
       </div>
 
       {error && (

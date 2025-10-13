@@ -15,6 +15,32 @@ A React.js application for visualizing images with bounding box annotations. Thi
 
 ## Installation
 
+### Backend Setup
+
+1. Navigate to the backend directory:
+   ```bash
+   cd visualizer/backend
+   ```
+
+2. Install Python dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. Start the backend server:
+   ```bash
+   python start.py --img-dir /path/to/your/images
+   ```
+   
+   Or use the default images directory:
+   ```bash
+   python start.py
+   ```
+
+The API will be available at `http://localhost:8000`
+
+### Frontend Setup
+
 1. Navigate to the frontend directory:
    ```bash
    cd visualizer/frontend
@@ -114,6 +140,25 @@ Where:
 ## Project Structure
 
 The frontend code is placed in `frontend/` and the backend in `backend/`
+
+## Image Directory Structure
+
+The backend expects images to be organized as follows:
+
+```
+backend/images/
+├── image_id_1/
+│   ├── image_id_1.jpg
+│   └── image_id_1.json
+├── image_id_2/
+│   ├── image_id_2.jpg
+│   └── image_id_2.json
+└── ...
+```
+
+Each directory should contain:
+- A JPG image file named `{image_id}.jpg`
+- A JSON annotation file named `{image_id}.json` in Mapillary format
 
 ## Dependencies
 
