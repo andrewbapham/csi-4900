@@ -1,0 +1,76 @@
+{
+    "id": 123456789,
+    "url": "https://example.com/sample-image.jpg",
+    "camera_type": "perspective",
+    "lat": 43.65089644755702,
+    "lon": -79.36953127384186,
+    "creator": {
+        "id": 110863471828488,
+        "username": "sample_user"
+    },
+    "width": 4032,
+    "height": 3024,
+    "sequence": "SampleSequence123",
+    "detections": [
+        {
+            "id": 1001,
+            "value": "regulatory--stop--g1",
+            "geometry": "sample_geometry_1",
+            "bbox": [
+                150,
+                100,
+                350,
+                400
+            ],
+            "image_id": 123456789
+        },
+        {
+            "id": 1002,
+            "value": "object--vehicle--car",
+            "geometry": "sample_geometry_2",
+            "bbox": [
+                400,
+                200,
+                580,
+                320
+            ],
+            "image_id": 123456789
+        },
+        {
+            "id": 1003,
+            "value": "object--traffic-light",
+            "geometry": "sample_geometry_3",
+            "bbox": [
+                50,
+                50,
+                130,
+                130
+            ],
+            "image_id": 123456789
+        },
+        {
+            "id": 1004,
+            "value": "information--guide--g1",
+            "geometry": "sample_geometry_4",
+            "bbox": [
+                600,
+                150,
+                700,
+                350
+            ],
+            "image_id": 123456789
+        },
+        {
+            "id": 1005,
+            "value": "object--building",
+            "geometry": "sample_geometry_5",
+            "bbox": [
+                300,
+                400,
+                550,
+                550
+            ],
+            "image_id": 123456789
+        }
+    ]
+}
