@@ -362,11 +362,15 @@ const App: React.FC = () => {
         // After loading new page, load the first image
         if (apiImages.length > 0) {
           setCurrentImageIndex(0);
-          loadImageFromApi(apiImages[0].id);
+          await loadImageFromApi(apiImages[0].id);
+          // Fit to screen after loading new image
+          setTimeout(() => handleFitToScreen(), 200);
         }
       } else if (nextIndex < apiImages.length) {
         setCurrentImageIndex(nextIndex);
-        loadImageFromApi(apiImages[nextIndex].id);
+        await loadImageFromApi(apiImages[nextIndex].id);
+        // Fit to screen after loading new image
+        setTimeout(() => handleFitToScreen(), 200);
       }
     }
   };
@@ -381,11 +385,15 @@ const App: React.FC = () => {
         // After loading new page, load the last image
         if (apiImages.length > 0) {
           setCurrentImageIndex(apiImages.length - 1);
-          loadImageFromApi(apiImages[apiImages.length - 1].id);
+          await loadImageFromApi(apiImages[apiImages.length - 1].id);
+          // Fit to screen after loading new image
+          setTimeout(() => handleFitToScreen(), 200);
         }
       } else if (prevIndex >= 0) {
         setCurrentImageIndex(prevIndex);
-        loadImageFromApi(apiImages[prevIndex].id);
+        await loadImageFromApi(apiImages[prevIndex].id);
+        // Fit to screen after loading new image
+        setTimeout(() => handleFitToScreen(), 200);
       }
     }
   };
@@ -395,7 +403,9 @@ const App: React.FC = () => {
 
     if (apiImages.length > 0) {
       setCurrentImageIndex(index);
-      loadImageFromApi(apiImages[index].id);
+      await loadImageFromApi(apiImages[index].id);
+      // Fit to screen after loading new image
+      setTimeout(() => handleFitToScreen(), 200);
     }
   };
 
