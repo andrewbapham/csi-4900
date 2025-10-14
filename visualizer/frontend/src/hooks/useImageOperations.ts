@@ -44,13 +44,14 @@ export const useImageOperations = ({
           if (data.detections && Array.isArray(data.detections)) {
             const processedAnnotations = data.detections.map(detection => ({
               id: detection.id,
-              x: detection.bbox[0], // x1
-              y: detection.bbox[1], // y1
-              width: detection.bbox[2] - detection.bbox[0], // x2 - x1
-              height: detection.bbox[3] - detection.bbox[1], // y2 - y1
-              class: detection.value,
-              confidence: 1.0, // Mapillary doesn't provide confidence scores
-              imageId: detection.image_id
+              label: detection.value,
+              className: detection.value,
+              bbox: {
+                x: detection.bbox[0], // x1
+                y: detection.bbox[1], // y1
+                width: detection.bbox[2] - detection.bbox[0], // x2 - x1
+                height: detection.bbox[3] - detection.bbox[1] // y2 - y1
+              },
             }));
             setAnnotations(processedAnnotations);
 

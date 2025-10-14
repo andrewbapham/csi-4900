@@ -10,7 +10,7 @@ import Sidebar from './components/Sidebar';
 import ImageViewer from './components/ImageViewer';
 import './App.css';
 
-const App = () => {
+const App: React.FC = () => {
   // State management hooks
   const imageState = useImageState();
   const apiState = useAPIState();
@@ -115,10 +115,11 @@ const App = () => {
       // Only draw annotations if there are any
       if (annotations.length > 0) {
         annotations.forEach((annotation, index) => {
-          const { x, y, width, height, class: className, confidence } = annotation;
+          const { bbox, className } = annotation;
+          const { x, y, width, height } = bbox;
           const color = getClassColor(className);
-          const isHovered = hoveredAnnotation === index;
-          const isSelected = selectedAnnotation === index;
+          const isHovered = hoveredAnnotation === annotation.id;
+          const isSelected = selectedAnnotation === annotation.id;
 
           // Draw highlight background for hovered/selected annotations
           if (isHovered || isSelected) {
@@ -133,7 +134,7 @@ const App = () => {
 
           // Draw label background
           const formattedClassName = formatClassName(className);
-          const labelText = `${formattedClassName}${confidence && confidence < 1 ? ` (${(confidence * 100).toFixed(1)}%)` : ''}`;
+          const labelText = formattedClassName;
           const textMetrics = ctx.measureText(labelText);
           const labelWidth = textMetrics.width + 8;
           const labelHeight = 20;
@@ -207,9 +208,8 @@ const App = () => {
     }
   };
 
-  const handleDownload = (imageData) => {
-    // In a real implementation, this would trigger a download
-    console.log('Downloading:', imageData);
+  const handleDownload = (imageUrl: string) => {
+  
   };
 
   // Use zoom operations from hooks
@@ -364,13 +364,14 @@ const App = () => {
         if (annotationData.detections && Array.isArray(annotationData.detections)) {
           const processedAnnotations = annotationData.detections.map(detection => ({
             id: detection.id,
-            x: detection.bbox[0],
-            y: detection.bbox[1],
-            width: detection.bbox[2] - detection.bbox[0],
-            height: detection.bbox[3] - detection.bbox[1],
-            class: detection.value,
-            confidence: 1.0,
-            imageId: detection.image_id
+            label: detection.value,
+            className: detection.value,
+            bbox: {
+              x: detection.bbox[0],
+              y: detection.bbox[1],
+              width: detection.bbox[2] - detection.bbox[0],
+              height: detection.bbox[3] - detection.bbox[1]
+            },
           }));
           setAnnotations(processedAnnotations);
 
