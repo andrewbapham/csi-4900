@@ -1,4 +1,11 @@
 venv/
 __pycache__/
 .DS_Store
+
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.json
+
 .env
