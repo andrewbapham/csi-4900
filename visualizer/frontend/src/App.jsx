@@ -357,11 +357,11 @@ const App = () => {
         // After loading new page, load the first image
         if (apiImages.length > 0) {
           setCurrentImageIndex(0);
-          loadImageFromApi(apiImages[0]);
+          loadImageFromApi(apiImages[0].id);
         }
       } else if (nextIndex < apiImages.length) {
         setCurrentImageIndex(nextIndex);
-        loadImageFromApi(apiImages[nextIndex]);
+        loadImageFromApi(apiImages[nextIndex].id);
       }
     }
   };
@@ -376,11 +376,11 @@ const App = () => {
         // After loading new page, load the last image
         if (apiImages.length > 0) {
           setCurrentImageIndex(apiImages.length - 1);
-          loadImageFromApi(apiImages[apiImages.length - 1]);
+          loadImageFromApi(apiImages[apiImages.length - 1].id);
         }
       } else if (prevIndex >= 0) {
         setCurrentImageIndex(prevIndex);
-        loadImageFromApi(apiImages[prevIndex]);
+        loadImageFromApi(apiImages[prevIndex].id);
       }
     }
   };
@@ -390,7 +390,7 @@ const App = () => {
 
     if (apiImages.length > 0) {
       setCurrentImageIndex(index);
-      loadImageFromApi(apiImages[index]);
+      loadImageFromApi(apiImages[index].id);
     }
   };
 
@@ -558,12 +558,55 @@ const App = () => {
       );
       if (response.ok) {
         const data = await response.json();
-        setApiImages(data.image_ids);
+
+        // Fetch detailed info for each image ID
+        const imageDetailsPromises = data.image_ids.map(async (imageId) => {
+          try {
+            const infoResponse = await fetch(
+              `${apiBaseUrl}/api/images/${imageId}/info`
+            );
+            if (infoResponse.ok) {
+              const imageInfo = await infoResponse.json();
+              return {
+                id: imageId,
+                name: imageId,
+                url: `${apiBaseUrl}/api/images/${imageId}`,
+                thumbnail: `${apiBaseUrl}/api/images/${imageId}`, // Same as URL for now
+                width: imageInfo.width,
+                height: imageInfo.height,
+                size: imageInfo.image_size,
+                annotations: [], // Will be populated when image is loaded
+              };
+            } else {
+              // Fallback if info endpoint fails
+              return {
+                id: imageId,
+                name: imageId,
+                url: `${apiBaseUrl}/api/images/${imageId}`,
+                thumbnail: `${apiBaseUrl}/api/images/${imageId}`,
+                annotations: [],
+              };
+            }
+          } catch (err) {
+            console.warn(`Failed to fetch info for image ${imageId}:`, err);
+            // Fallback object
+            return {
+              id: imageId,
+              name: imageId,
+              url: `${apiBaseUrl}/api/images/${imageId}`,
+              thumbnail: `${apiBaseUrl}/api/images/${imageId}`,
+              annotations: [],
+            };
+          }
+        });
+
+        const imageDetails = await Promise.all(imageDetailsPromises);
+        setApiImages(imageDetails);
         setPagination(data.pagination);
         setCurrentPage(page);
-        if (data.image_ids.length > 0) {
+        if (imageDetails.length > 0) {
           setCurrentImageIndex(0);
-          setCurrentImageId(data.image_ids[0]);
+          setCurrentImageId(imageDetails[0].id);
         }
       } else {
         setError("Failed to load images from API");
@@ -610,6 +653,15 @@ const App = () => {
           );
           setAnnotations(processedAnnotations);
 
+          // Update the annotations count in the apiImages array
+          setApiImages((prevImages) =>
+            prevImages.map((img) =>
+              img.id === imageId
+                ? { ...img, annotations: processedAnnotations }
+                : img
+            )
+          );
+
           if (annotationData.width && annotationData.height) {
             setCurrentImageMetadata({
               width: annotationData.width,
@@ -623,6 +675,13 @@ const App = () => {
           }
         } else {
           setAnnotations(annotationData);
+
+          // Update the annotations count in the apiImages array
+          setApiImages((prevImages) =>
+            prevImages.map((img) =>
+              img.id === imageId ? { ...img, annotations: annotationData } : img
+            )
+          );
         }
       } else {
         setAnnotations([]);
@@ -685,6 +744,7 @@ const App = () => {
           saveAnnotationEdit={saveAnnotationEdit}
           validateAnnotation={validateAnnotation}
           invalidateAnnotation={invalidateAnnotation}
+          deleteAnnotation={deleteAnnotation}
           formatClassName={formatClassName}
           annotationMode={annotationMode}
           setAnnotationMode={setAnnotationMode}

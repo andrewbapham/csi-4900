@@ -35,6 +35,7 @@ const Sidebar = ({
   validateAnnotation,
   invalidateAnnotation,
   formatClassName,
+  deleteAnnotation,
   // Annotation creation props
   annotationMode,
   setAnnotationMode,
@@ -59,7 +60,7 @@ const Sidebar = ({
       {apiImages.length > 0 && (
         <div className="image-gallery-section">
           <ImageGallery
-            images={apiImages.map((id) => `${apiBaseUrl}/api/images/${id}`)}
+            images={apiImages}
             currentIndex={currentImageIndex}
             onImageSelect={handleImageSelect}
             onDownload={handleDownload}
@@ -118,6 +119,7 @@ const Sidebar = ({
         validateAnnotation={validateAnnotation}
         invalidateAnnotation={invalidateAnnotation}
         formatClassName={formatClassName}
+        deleteAnnotation={deleteAnnotation}
       />
     </div>
   );
