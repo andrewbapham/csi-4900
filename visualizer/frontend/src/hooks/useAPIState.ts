@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Pagination } from '@/types';
+import { Pagination, ImageData } from '@/types';
 
 export const useAPIState = () => {
-  const [apiImages, setApiImages] = useState<string[]>([]);
+  const [apiImages, setApiImages] = useState<ImageData[]>([]);
   const [currentImageId, setCurrentImageId] = useState<string | null>(null);
   const [apiBaseUrl] = useState<string>('http://localhost:8000');
   const [pagination, setPagination] = useState<Pagination | null>(null);

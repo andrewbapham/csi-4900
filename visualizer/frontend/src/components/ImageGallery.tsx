@@ -7,9 +7,10 @@ interface ImageGalleryProps {
   images: ImageData[];
   currentIndex: number;
   onImageSelect: (index: number) => void;
+  apiBaseUrl: string;
 }
 
-const ImageGallery = ({ images, currentIndex, onImageSelect}: ImageGalleryProps) => {
+const ImageGallery = ({ images, currentIndex, onImageSelect, apiBaseUrl}: ImageGalleryProps) => {
   const [loadingImages, setLoadingImages] = useState(new Set());
 
   const handleImageLoad = (index: number) => {
@@ -24,10 +25,11 @@ const ImageGallery = ({ images, currentIndex, onImageSelect}: ImageGalleryProps)
     setLoadingImages(prev => new Set(prev).add(index));
   };
 
-  const handleDownload = (imageUrl: string, imageName: string) => {
-    // download image from the given url
+  const handleDownload = (imageId: string, imageName: string) => {
+    // download image using the download endpoint
+    const downloadUrl = `${apiBaseUrl}/api/images/${imageId}/download`;
     const link = document.createElement('a');
-    link.href = imageUrl;
+    link.href = downloadUrl;
     link.download = imageName;
     link.click();
   };

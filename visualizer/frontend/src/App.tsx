@@ -1,15 +1,22 @@
-import React, { useEffect } from 'react';
-import { formatClassName, getClassColor, getContrastColor } from './utils/annotationUtils';
-import { useImageState } from './hooks/useImageState';
-import { useAPIState } from './hooks/useAPIState';
-import { useUIState } from './hooks/useUIState';
-import { useImageOperations } from './hooks/useImageOperations';
-import { useAnnotationOperations } from './hooks/useAnnotationOperations';
-import { useZoomOperations } from './hooks/useZoomOperations';
-import Sidebar from './components/Sidebar';
-import ImageViewer from './components/ImageViewer';
-import './App.css';
-import { Annotation, AnnotationApiResponse } from './types/index.js';
+import React, { useEffect, useState } from "react";
+import {
+  formatClassName,
+  getClassColor,
+  getContrastColor,
+} from "./utils/annotationUtils";
+import { boundingBoxToImageBbox, apiFormatToBoundingBox } from "./utils/coordinateUtils";
+import { useImageState } from "./hooks/useImageState";
+import { useAPIState } from "./hooks/useAPIState";
+import { useUIState } from "./hooks/useUIState";
+import { useImageOperations } from "./hooks/useImageOperations";
+import { useAnnotationOperations } from "./hooks/useAnnotationOperations";
+import { useZoomOperations } from "./hooks/useZoomOperations";
+import { useAnnotationCreation } from "./hooks/useAnnotationCreation";
+import { Annotation, AnnotationApiResponse, ImageData } from "./types";
+import Sidebar from "./components/Sidebar";
+import ImageViewer from "./components/ImageViewer";
+import AnnotationControls from "./components/AnnotationControls";
+import "./App.css";
 
 const App: React.FC = () => {
   // State management hooks
@@ -19,60 +26,158 @@ const App: React.FC = () => {
 
   // Destructure state for easier access
   const {
-    currentImage, setCurrentImage, annotations, setAnnotations,
-    currentImageIndex, setCurrentImageIndex, currentImageMetadata, setCurrentImageMetadata,
-    hoveredAnnotation, setHoveredAnnotation, selectedAnnotation, setSelectedAnnotation,
-    editingAnnotation, setEditingAnnotation, zoom, setZoom, panOffset, setPanOffset,
-    isPanning, setIsPanning, lastPanPoint, setLastPanPoint,
-    canvasRef, fileInputRef, jsonInputRef, canvasWrapperRef
+    currentImage,
+    setCurrentImage,
+    annotations,
+    setAnnotations,
+    currentImageIndex,
+    setCurrentImageIndex,
+    currentImageMetadata,
+    setCurrentImageMetadata,
+    hoveredAnnotation,
+    setHoveredAnnotation,
+    selectedAnnotation,
+    setSelectedAnnotation,
+    editingAnnotation,
+    setEditingAnnotation,
+    zoom,
+    setZoom,
+    panOffset,
+    setPanOffset,
+    isPanning,
+    setIsPanning,
+    lastPanPoint,
+    setLastPanPoint,
+    isDrawingAnnotation,
+    setIsDrawingAnnotation,
+    currentBbox,
+    setCurrentBbox,
+    selectedClass,
+    setSelectedClass,
+    drawingStartPoint,
+    setDrawingStartPoint,
+    canvasRef,
+    fileInputRef,
+    jsonInputRef,
+    canvasWrapperRef,
   } = imageState;
 
   const {
-    apiImages, setApiImages, currentImageId, setCurrentImageId, apiBaseUrl,
-    pagination, setPagination, currentPage, setCurrentPage, loadingImages, setLoadingImages
+    apiImages,
+    setApiImages,
+    currentImageId,
+    setCurrentImageId,
+    apiBaseUrl,
+    pagination,
+    setPagination,
+    currentPage,
+    setCurrentPage,
+    loadingImages,
+    setLoadingImages,
   } = apiState;
 
   const {
-    loading, setLoading, error, setError,
-    sidebarWidth, setSidebarWidth, isDragging, setIsDragging
+    isValidating,
+    setIsValidating,
+    loading,
+    setLoading,
+    error,
+    setError,
+    sidebarWidth,
+    setSidebarWidth,
+    isDragging,
+    setIsDragging,
+    annotationMode,
+    setAnnotationMode,
   } = uiState;
 
   // Operation hooks 
   const imageOperations = useImageOperations({
-    setAnnotations, setZoom, setPanOffset, setCurrentImageMetadata,
-    setHoveredAnnotation, setSelectedAnnotation, setCurrentImage, setError
+    setAnnotations,
+    setZoom,
+    setPanOffset,
+    setCurrentImageMetadata,
+    setHoveredAnnotation,
+    setSelectedAnnotation,
+    setCurrentImage,
+    setError,
   });
 
   const annotationOperations = useAnnotationOperations({
-    annotations, setAnnotations, setEditingAnnotation
+    annotations,
+    setAnnotations,
+    setEditingAnnotation,
   });
 
   const zoomOperations = useZoomOperations({
-    zoom, setZoom, setPanOffset, canvasWrapperRef, currentImage
+    zoom,
+    setZoom,
+    setPanOffset,
+    canvasWrapperRef,
+    currentImage,
+  });
+
+  const annotationCreation = useAnnotationCreation({
+    annotationMode,
+    setAnnotationMode,
+    isDrawingAnnotation,
+    setIsDrawingAnnotation,
+    currentBbox,
+    setCurrentBbox,
+    drawingStartPoint,
+    setDrawingStartPoint,
+    selectedClass,
+    canvasRef,
+    canvasWrapperRef,
+    zoom,
+    currentImageId,
+    apiBaseUrl,
+    setAnnotations,
+    setError,
   });
 
   // Load image and draw annotations
   useEffect(() => {
     if (currentImage) {
+      setLoadedImage(null); // Clear previous image
       drawAnnotations();
     }
   }, [currentImage, annotations, hoveredAnnotation, selectedAnnotation]);
 
-  // Keyboard shortcuts for zoom
+  // Redraw canvas when preview bbox changes (faster than full redraw)
+  useEffect(() => {
+    if (currentImage && currentBbox && isDrawingAnnotation) {
+      redrawCanvas();
+    }
+  }, [currentBbox]);
+
+  // Keyboard shortcuts for zoom and annotation
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Handle escape key for annotation mode
+      if (event.key === "Escape") {
+        if (isDrawingAnnotation) {
+          event.preventDefault();
+          annotationCreation.cancelDrawing();
+        } else if (annotationMode) {
+          event.preventDefault();
+          annotationCreation.exitAnnotationMode();
+        }
+        return;
+      }
+
       if (event.ctrlKey || event.metaKey) {
         switch (event.key) {
-          case '=':
-          case '+':
+          case "=":
+          case "+":
             event.preventDefault();
             zoomOperations.handleZoomIn();
             break;
-          case '-':
+          case "-":
             event.preventDefault();
             zoomOperations.handleZoomOut();
             break;
-          case '0':
+          case "0":
             event.preventDefault();
             zoomOperations.handleResetZoom();
             break;
@@ -80,60 +185,46 @@ const App: React.FC = () => {
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [zoomOperations]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [zoomOperations, isDrawingAnnotation, annotationMode, annotationCreation]);
 
-  const drawAnnotations = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !currentImage) return;
+  // Store the loaded image for reuse
+  const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const img = new Image();
+  // Function to draw annotations and preview on canvas (synchronous)
+  const drawAnnotationsOnCanvas = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, img: HTMLImageElement) => {
+    if (!img) return;
 
-    img.onload = () => {
-      // Set canvas size to match image
-      canvas.width = img.width;
-      canvas.height = img.height;
+    // Clear canvas completely
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Calculate and set optimal zoom for first load
-      if (zoom === 1) {
-        const optimalZoom = zoomOperations.calculateOptimalZoom(img.width, img.height);
-        setZoom(optimalZoom);
+    // Draw image
+    ctx.drawImage(img, 0, 0);
 
-        // Scroll to show the image after a short delay to allow zoom to apply
-        setTimeout(() => {
-          zoomOperations.scrollToImage();
-        }, 100);
-      }
-
-      // Clear canvas completely
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Draw image
-      ctx.drawImage(img, 0, 0);
-
-      // Only draw annotations if there are any
-      if (annotations.length > 0) {
-        annotations.forEach((annotation) => {
+      // Only draw annotations if there are any (excluding deleted ones)
+      const visibleAnnotations = annotations.filter(annotation => !annotation.deleted);
+      if (visibleAnnotations.length > 0) {
+        visibleAnnotations.forEach((annotation) => {
           const { bbox } = annotation;
-          // bbox is [x1, y1, x2, y2] where origin is top-left (0,0)
-          const [x1, y1, x2, y2] = bbox as [number, number, number, number];
-          const x = x1;
-          const y = y1;
-          const width = x2 - x1;
-          const height = y2 - y1;
+          // Convert BoundingBox to image coordinates for rendering
+          const imageBbox = boundingBoxToImageBbox(bbox);
+          const x = imageBbox.x;
+          const y = imageBbox.y;
+          const width = imageBbox.width;
+          const height = imageBbox.height;
 
           const color = getClassColor(annotation.value);
           const isHovered = hoveredAnnotation === annotation.id;
           const isSelected = selectedAnnotation === annotation.id;
 
-          // Draw highlight background for hovered/selected annotations
-          if (isHovered || isSelected) {
-            ctx.fillStyle = isSelected ? 'rgba(255, 255, 0, 0.3)' : 'rgba(255, 255, 255, 0.3)';
-            ctx.fillRect(x - 2, y - 2, width + 4, height + 4);
-          }
+        // Draw highlight background for hovered/selected annotations
+        if (isHovered || isSelected) {
+          ctx.fillStyle = isSelected
+            ? "rgba(255, 255, 0, 0.3)"
+            : "rgba(255, 255, 255, 0.3)";
+          ctx.fillRect(x - 2, y - 2, width + 4, height + 4);
+        }
 
           // Draw bounding box with enhanced style for hovered/selected
           ctx.strokeStyle = color;
@@ -148,26 +239,118 @@ const App: React.FC = () => {
           const labelWidth = textMetrics.width + 8;
           const labelHeight = 24;
 
-          ctx.fillStyle = color;
-          ctx.fillRect(x, y - labelHeight, labelWidth, labelHeight);
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y - labelHeight, labelWidth, labelHeight);
 
-          // Draw label text with high contrast color
-          const textColor = getContrastColor(color);
-          ctx.fillStyle = textColor;
-          ctx.fillText(labelText, x + 4, y - 6);
-        });
+        // Draw label text with high contrast color
+        const textColor = getContrastColor(color);
+        ctx.fillStyle = textColor;
+        ctx.fillText(labelText, x + 4, y - 6);
+      });
+    }
+
+    // Draw preview bounding box if currently drawing
+    if (currentBbox && isDrawingAnnotation) {
+      const x = currentBbox.x;
+      const y = currentBbox.y;
+      const width = currentBbox.width;
+      const height = currentBbox.height;
+
+      // Draw preview rectangle with dashed border
+      ctx.setLineDash([5, 5]);
+      ctx.strokeStyle = "#007bff";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, width, height);
+
+      // Draw semi-transparent fill
+      ctx.fillStyle = "rgba(0, 123, 255, 0.1)";
+      ctx.fillRect(x, y, width, height);
+
+      // Reset line dash
+      ctx.setLineDash([]);
+
+      // Draw preview label
+      const previewLabel = `${formatClassName(selectedClass)} (preview)`;
+      const previewMetrics = ctx.measureText(previewLabel);
+      const previewLabelWidth = previewMetrics.width + 8;
+      const previewLabelHeight = 20;
+
+      ctx.fillStyle = "#007bff";
+      ctx.fillRect(
+        x,
+        y - previewLabelHeight,
+        previewLabelWidth,
+        previewLabelHeight
+      );
+
+      ctx.fillStyle = "white";
+      ctx.font = "12px Arial";
+      ctx.fillText(previewLabel, x + 4, y - 6);
+    }
+  };
+
+  const drawAnnotations = () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !currentImage) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const img = new Image();
+
+    img.onload = () => {
+      // Set canvas size to match image (only on initial load)
+      if (canvas.width !== img.width || canvas.height !== img.height) {
+        canvas.width = img.width;
+        canvas.height = img.height;
       }
+
+      // Calculate and set optimal zoom for first load
+      if (zoom === 1) {
+        const optimalZoom = zoomOperations.calculateOptimalZoom(
+          img.width,
+          img.height
+        );
+        setZoom(optimalZoom);
+
+        // Scroll to show the image after a short delay to allow zoom to apply
+        setTimeout(() => {
+          zoomOperations.scrollToImage();
+        }, 100);
+      }
+
+      // Store the loaded image for reuse
+      setLoadedImage(img);
+
+      // Draw everything
+      drawAnnotationsOnCanvas(ctx, canvas, img);
     };
 
     img.src = currentImage.url;
   };
 
+
+  // Quick redraw function for preview updates (uses stored image)
+  const redrawCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !currentImage || !loadedImage) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    drawAnnotationsOnCanvas(ctx, canvas, loadedImage);
+  };
+
   // Use the operations from hooks
   const { handleImageUpload, handleJsonUpload } = imageOperations;
 
-
   // Use annotation operations from hooks
-  const { validateAnnotation, invalidateAnnotation, editAnnotation, saveAnnotationEdit, deleteAnnotation } = annotationOperations;
+  const {
+    validateAnnotation,
+    invalidateAnnotation,
+    editAnnotation,
+    saveAnnotationEdit,
+    deleteAnnotation,
+    restoreAnnotation,
+  } = annotationOperations;
 
   const nextImage = async () => {
     if (apiImages.length > 0) {
@@ -179,11 +362,15 @@ const App: React.FC = () => {
         // After loading new page, load the first image
         if (apiImages.length > 0) {
           setCurrentImageIndex(0);
-          loadImageFromApi(apiImages[0]);
+          await loadImageFromApi(apiImages[0].id);
+          // Fit to screen after loading new image
+          setTimeout(() => handleFitToScreen(), 200);
         }
       } else if (nextIndex < apiImages.length) {
         setCurrentImageIndex(nextIndex);
-        loadImageFromApi(apiImages[nextIndex]);
+        await loadImageFromApi(apiImages[nextIndex].id);
+        // Fit to screen after loading new image
+        setTimeout(() => handleFitToScreen(), 200);
       }
     }
   };
@@ -198,26 +385,33 @@ const App: React.FC = () => {
         // After loading new page, load the last image
         if (apiImages.length > 0) {
           setCurrentImageIndex(apiImages.length - 1);
-          loadImageFromApi(apiImages[apiImages.length - 1]);
+          await loadImageFromApi(apiImages[apiImages.length - 1].id);
+          // Fit to screen after loading new image
+          setTimeout(() => handleFitToScreen(), 200);
         }
       } else if (prevIndex >= 0) {
         setCurrentImageIndex(prevIndex);
-        loadImageFromApi(apiImages[prevIndex]);
+        await loadImageFromApi(apiImages[prevIndex].id);
+        // Fit to screen after loading new image
+        setTimeout(() => handleFitToScreen(), 200);
       }
     }
   };
 
-  const handleImageSelect = (index: number) => {
+  const handleImageSelect = async (index: number) => {
     imageOperations.clearImageState();
 
     if (apiImages.length > 0) {
       setCurrentImageIndex(index);
-      loadImageFromApi(apiImages[index]);
+      await loadImageFromApi(apiImages[index].id);
+      // Fit to screen after loading new image
+      setTimeout(() => handleFitToScreen(), 200);
     }
   };
 
   // Use zoom operations from hooks
-  const { handleZoomIn, handleZoomOut, handleResetZoom, handleFitToScreen } = zoomOperations;
+  const { handleZoomIn, handleZoomOut, handleResetZoom, handleFitToScreen } =
+    zoomOperations;
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     setIsDragging(true);
@@ -232,14 +426,32 @@ const App: React.FC = () => {
 
   // Pan functionality for canvas
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.button === 0) { // Left mouse button
-      setIsPanning(true);
-      setLastPanPoint({ x: e.clientX, y: e.clientY });
-      e.preventDefault();
+    if (e.button === 0) {
+      // Left mouse button
+
+      // Check if we're in annotation mode and should start drawing
+      if (annotationMode && !isDrawingAnnotation) {
+        annotationCreation.handleDrawingMouseDown(e);
+        return;
+      }
+
+      // Otherwise, handle panning (but not if we're currently drawing)
+      if (!isDrawingAnnotation) {
+        setIsPanning(true);
+        setLastPanPoint({ x: e.clientX, y: e.clientY });
+        e.preventDefault();
+      }
     }
   };
 
   const handleCanvasMouseMove = (e: MouseEvent) => {
+    // Handle annotation drawing
+    if (isDrawingAnnotation) {
+      annotationCreation.handleDrawingMouseMove(e);
+      return;
+    }
+
+    // Handle panning
     if (isPanning) {
       const deltaX = e.clientX - lastPanPoint.x;
       const deltaY = e.clientY - lastPanPoint.y;
@@ -250,11 +462,19 @@ const App: React.FC = () => {
         const newScrollTop = canvasWrapper.scrollTop - deltaY;
 
         // Constrain scrolling to prevent over-scrolling
-        const maxScrollLeft = canvasWrapper.scrollWidth - canvasWrapper.clientWidth;
-        const maxScrollTop = canvasWrapper.scrollHeight - canvasWrapper.clientHeight;
+        const maxScrollLeft =
+          canvasWrapper.scrollWidth - canvasWrapper.clientWidth;
+        const maxScrollTop =
+          canvasWrapper.scrollHeight - canvasWrapper.clientHeight;
 
-        canvasWrapper.scrollLeft = Math.max(0, Math.min(newScrollLeft, maxScrollLeft));
-        canvasWrapper.scrollTop = Math.max(0, Math.min(newScrollTop, maxScrollTop));
+        canvasWrapper.scrollLeft = Math.max(
+          0,
+          Math.min(newScrollLeft, maxScrollLeft)
+        );
+        canvasWrapper.scrollTop = Math.max(
+          0,
+          Math.min(newScrollTop, maxScrollTop)
+        );
       }
 
       setLastPanPoint({ x: e.clientX, y: e.clientY });
@@ -262,10 +482,17 @@ const App: React.FC = () => {
   };
 
   const handleCanvasMouseUp = () => {
+    // Handle annotation drawing completion
+    if (isDrawingAnnotation) {
+      annotationCreation.handleDrawingMouseUp();
+      return;
+    }
+
+    // Handle panning end
     setIsPanning(false);
   };
 
-  const handleCanvasMouseLeave = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleCanvasMouseLeave = () => {
     setIsPanning(false);
   };
 
@@ -288,17 +515,23 @@ const App: React.FC = () => {
     }
   }, [isDragging]);
 
-  // Add panning event listeners
+  // Add panning and drawing event listeners
   useEffect(() => {
-    if (isPanning) {
-      document.addEventListener('mousemove', handleCanvasMouseMove);
-      document.addEventListener('mouseup', handleCanvasMouseUp);
+    if (isPanning || isDrawingAnnotation) {
+      document.addEventListener("mousemove", handleCanvasMouseMove);
+      document.addEventListener("mouseup", handleCanvasMouseUp);
       return () => {
-        document.removeEventListener('mousemove', handleCanvasMouseMove);
-        document.removeEventListener('mouseup', handleCanvasMouseUp);
+        document.removeEventListener("mousemove", handleCanvasMouseMove);
+        document.removeEventListener("mouseup", handleCanvasMouseUp);
       };
     }
-  }, [isPanning, lastPanPoint]);
+  }, [
+    isPanning,
+    isDrawingAnnotation,
+    lastPanPoint,
+    handleCanvasMouseMove,
+    handleCanvasMouseUp,
+  ]);
 
   // Load images from API on component mount
   useEffect(() => {
@@ -323,35 +556,71 @@ const App: React.FC = () => {
         }
       };
 
-      canvasWrapper.addEventListener('wheel', handleWheel, { passive: false });
-      return () => canvasWrapper.removeEventListener('wheel', handleWheel);
+      canvasWrapper.addEventListener("wheel", handleWheel, { passive: false });
+      return () => canvasWrapper.removeEventListener("wheel", handleWheel);
     }
   }, [currentImage, zoom]);
 
   const loadApiImages = async (page = 1) => {
     try {
       setLoadingImages(true);
-      const response = await fetch(`${apiBaseUrl}/api/images?page=${page}&limit=10`);
+      const response = await fetch(
+        `${apiBaseUrl}/api/images?page=${page}&limit=10`
+      );
       if (response.ok) {
         const data = await response.json();
-        setApiImages(data.image_ids);
-        // Map backend pagination format to frontend format
-        setPagination({
-          page: data.pagination.page,
-          per_page: data.pagination.limit,
-          total: data.pagination.total_images,
-          pages: data.pagination.total_pages,
-          has_prev: data.pagination.has_prev,
-          has_next: data.pagination.has_next,
-          total_images: data.pagination.total_images
+
+        // Fetch detailed info for each image ID
+        const imageDetailsPromises = data.image_ids.map(async (imageId: string) => {
+          try {
+            const infoResponse = await fetch(
+              `${apiBaseUrl}/api/images/${imageId}/info`
+            );
+            if (infoResponse.ok) {
+              const imageInfo = await infoResponse.json();
+              return {
+                id: imageId,
+                name: imageId,
+                url: `${apiBaseUrl}/api/images/${imageId}`,
+                thumbnail: `${apiBaseUrl}/api/images/${imageId}`, // Same as URL for now
+                width: imageInfo.width,
+                height: imageInfo.height,
+                size: imageInfo.image_size,
+                annotations: [], // Will be populated when image is loaded
+              };
+            } else {
+              // Fallback if info endpoint fails
+              return {
+                id: imageId,
+                name: imageId,
+                url: `${apiBaseUrl}/api/images/${imageId}`,
+                thumbnail: `${apiBaseUrl}/api/images/${imageId}`,
+                annotations: [],
+              };
+            }
+          } catch (err) {
+            console.warn(`Failed to fetch info for image ${imageId}:`, err);
+            // Fallback object
+            return {
+              id: imageId,
+              name: imageId,
+              url: `${apiBaseUrl}/api/images/${imageId}`,
+              thumbnail: `${apiBaseUrl}/api/images/${imageId}`,
+              annotations: [],
+            };
+          }
         });
+
+        const imageDetails = await Promise.all(imageDetailsPromises);
+        setApiImages(imageDetails);
+        setPagination(data.pagination);
         setCurrentPage(page);
-        if (data.image_ids.length > 0) {
+        if (imageDetails.length > 0) {
           setCurrentImageIndex(0);
-          setCurrentImageId(data.image_ids[0]);
+          setCurrentImageId(imageDetails[0].id);
         }
       } else {
-        setError('Failed to load images from API');
+        setError("Failed to load images from API");
       }
     } catch (err) {
       setError('Error connecting to API: ' + (err as Error).message);
@@ -370,27 +639,53 @@ const App: React.FC = () => {
       setCurrentImageId(imageId);
 
       // Load annotations
-      const annotationsResponse = await fetch(`${apiBaseUrl}/api/images/${imageId}/annotations`);
+      const annotationsResponse = await fetch(
+        `${apiBaseUrl}/api/images/${imageId}/annotations`
+      );
       if (annotationsResponse.ok) {
         const annotationData: AnnotationApiResponse = await annotationsResponse.json();
 
         if (annotationData.detections && Array.isArray(annotationData.detections)) {
-          const processedAnnotations: Annotation[] = annotationData.detections
+          const processedAnnotations: Annotation[] = annotationData.detections.map((detection: any) => ({
+            ...detection,
+            bbox: apiFormatToBoundingBox(detection.bbox as [number, number, number, number])
+          }));
           setAnnotations(processedAnnotations);
 
-          setCurrentImageMetadata({
-            id: imageId,
-            filename: annotationData.filename,
-            width: annotationData.width,
-            height: annotationData.height,
-            lat: annotationData.lat,
-            lon: annotationData.lon,
-            creator: annotationData.creator,
-            annotations: processedAnnotations,
-            sequence: annotationData.sequence ?? null,
-          });
+          // Update the annotations count in the apiImages array
+          setApiImages((prevImages) =>
+            prevImages.map((img) =>
+              img.id === imageId
+                ? { ...img, annotations: processedAnnotations }
+                : img
+            )
+          );
+
+          if (annotationData.width && annotationData.height) {
+            setCurrentImageMetadata({
+              id: imageId,
+              filename: annotationData.filename,
+              width: annotationData.width,
+              height: annotationData.height,
+              lat: annotationData.lat,
+              lon: annotationData.lon,
+              creator: annotationData.creator,
+              cameraType: annotationData.cameraType,
+              sequence: annotationData.sequence,
+              annotations: processedAnnotations,
+            });
+          }
         
           setCurrentImage({ url: imageUrl, id: imageId });
+        } else {
+          setAnnotations([]);
+
+          // Update the annotations count in the apiImages array
+          setApiImages((prevImages: ImageData[]) =>
+            prevImages.map((img) =>
+              img.id === imageId ? { ...img, annotations: [] } : img
+            )
+          );
         }
       } 
     } catch (err) {
@@ -404,6 +699,16 @@ const App: React.FC = () => {
     <div className="app">
       <header className="app-header">
         <h1>Annotation Visualizer</h1>
+        <AnnotationControls
+          annotationMode={annotationMode}
+          setAnnotationMode={setAnnotationMode}
+          selectedClass={selectedClass}
+          setSelectedClass={setSelectedClass}
+          isDrawingAnnotation={isDrawingAnnotation}
+          setIsDrawingAnnotation={setIsDrawingAnnotation}
+          currentImage={currentImage}
+          compact={true}
+        />
       </header>
 
       <div className="main-content">
@@ -434,13 +739,12 @@ const App: React.FC = () => {
           saveAnnotationEdit={saveAnnotationEdit}
           validateAnnotation={validateAnnotation}
           invalidateAnnotation={invalidateAnnotation}
+          deleteAnnotation={deleteAnnotation}
+          restoreAnnotation={restoreAnnotation}
           formatClassName={formatClassName}
         />
 
-        <div
-          className="resize-handle"
-          onMouseDown={handleMouseDown}
-        ></div>
+        <div className="resize-handle" onMouseDown={handleMouseDown}></div>
 
         <ImageViewer
           currentImage={currentImage}
@@ -462,11 +766,7 @@ const App: React.FC = () => {
         />
       </div>
 
-      {error && (
-        <div className="error-message">
-          {error}
-        </div>
-      )}
+      {error && <div className="error-message">{error}</div>}
     </div>
   );
 };

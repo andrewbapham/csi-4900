@@ -6,18 +6,18 @@ import ImageGallery from './ImageGallery';
 import UploadSection from './UploadSection';
 import MetadataDisplay from './MetadataDisplay';
 import AnnotationList from './AnnotationList';
-import { Annotation, ImageMetadata, Pagination } from '@/types';
+import { Annotation, ImageMetadata, Pagination, ImageData } from '@/types';
 
 interface SidebarProps {
     sidebarWidth: number;
-    apiImages: string[];
+    apiImages: ImageData[];
     currentImageIndex: number;
     apiBaseUrl: string;
     pagination: Pagination | null;
     currentPage: number;
     loadingImages: boolean;
     loadApiImages: (page: number) => void;
-    handleImageSelect: (index: number) => void;
+    handleImageSelect: (index: number) => Promise<void>;
     fileInputRef: RefObject<HTMLInputElement>;
     jsonInputRef: RefObject<HTMLInputElement>;
     handleImageUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -32,9 +32,11 @@ interface SidebarProps {
     setSelectedAnnotation: (id: string | null) => void;
     editingAnnotation: string | null;
     editAnnotation: (id: string) => void;
-    saveAnnotationEdit: (id: string, newLabel: string) => void;
+    saveAnnotationEdit: (id: string, newValue: string) => void;
     validateAnnotation: (id: string) => void;
     invalidateAnnotation: (id: string) => void;
+    deleteAnnotation: (id: string) => void;
+    restoreAnnotation: (id: string) => void;
     formatClassName: (className: string | undefined | null) => string;
 }
 
@@ -65,6 +67,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     saveAnnotationEdit,
     validateAnnotation,
     invalidateAnnotation,
+    deleteAnnotation,
+    restoreAnnotation,
     formatClassName
 }) => {
     return (
@@ -90,9 +94,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                         <AccordionTrigger>Image Gallery</AccordionTrigger>
                         <AccordionContent>
                             <ImageGallery
-                                images={apiImages.map(id => ({ id, url: `${apiBaseUrl}/api/images/${id}` }))}
+                                images={apiImages}
                                 currentIndex={currentImageIndex}
                                 onImageSelect={handleImageSelect}
+                                apiBaseUrl={apiBaseUrl}
                             />
                             {pagination && (
                                 <div className="pagination-controls mt-4">
@@ -147,6 +152,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                             saveAnnotationEdit={saveAnnotationEdit}
                             validateAnnotation={validateAnnotation}
                             invalidateAnnotation={invalidateAnnotation}
+                            deleteAnnotation={deleteAnnotation}
+                            restoreAnnotation={restoreAnnotation}
                             formatClassName={formatClassName}
                         />
                     </AccordionContent>
