@@ -9,6 +9,8 @@ interface ImageViewerProps {
   canvasWrapperRef: RefObject<HTMLDivElement>;
   zoom: number;
   isPanning: boolean;
+  annotationMode: boolean;
+  hoveredAnnotation: string | null;
   currentImageIndex: number;
   apiImages: ImageData[];
   handleCanvasMouseDown: (event: React.MouseEvent<HTMLDivElement>) => void;
@@ -28,6 +30,8 @@ const ImageViewer = ({
   canvasWrapperRef,
   zoom,
   isPanning,
+  annotationMode,
+  hoveredAnnotation,
   currentImageIndex,
   apiImages,
   handleCanvasMouseDown,
@@ -50,7 +54,7 @@ const ImageViewer = ({
             onMouseDown={handleCanvasMouseDown}
             onMouseLeave={handleCanvasMouseLeave}
             style={{
-              cursor: isPanning ? 'grabbing' : 'grab',
+              cursor: isPanning ? 'grabbing' : hoveredAnnotation ? 'pointer' : annotationMode ? 'crosshair' : 'grab',
             }}
           >
             <div
