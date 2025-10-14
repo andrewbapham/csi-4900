@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Image, Eye, Download, Loader2 } from 'lucide-react';
 import './ImageGallery.css';
 import { ImageData } from '../types';
@@ -7,10 +7,9 @@ interface ImageGalleryProps {
   images: ImageData[];
   currentIndex: number;
   onImageSelect: (index: number) => void;
-  onDownload: (imageUrl: string) => void;
 }
 
-const ImageGallery = ({ images, currentIndex, onImageSelect, onDownload }: ImageGalleryProps) => {
+const ImageGallery = ({ images, currentIndex, onImageSelect}: ImageGalleryProps) => {
   const [loadingImages, setLoadingImages] = useState(new Set());
 
   const handleImageLoad = (index: number) => {
@@ -24,6 +23,15 @@ const ImageGallery = ({ images, currentIndex, onImageSelect, onDownload }: Image
   const handleImageStartLoad = (index: number) => {
     setLoadingImages(prev => new Set(prev).add(index));
   };
+
+  const handleDownload = (imageUrl: string, imageName: string) => {
+    // download image from the given url
+    const link = document.createElement('a');
+    link.href = imageUrl;
+    link.download = imageName;
+    link.click();
+  };
+
 
   return (
     <div className="image-gallery">
@@ -85,7 +93,7 @@ const ImageGallery = ({ images, currentIndex, onImageSelect, onDownload }: Image
                     className="btn-icon"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onDownload(imageUrl);
+                      handleDownload(imageData.url, imageName);
                     }}
                     title="Download"
                   >

@@ -59,11 +59,11 @@ const AnnotationList: React.FC<AnnotationListProps> = ({
                                 <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1">
                                         <Badge variant="default" className='rounded-md'>
-                                            {formatClassName(annotation.className || annotation.label)}
+                                            {formatClassName(annotation.value)}
                                         </Badge>
                                     </div>
                                     <p className="text-xs text-muted-foreground">
-                                        {annotation.className || annotation.label}
+                                        {annotation.value}
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-1">
@@ -122,7 +122,7 @@ const AnnotationList: React.FC<AnnotationListProps> = ({
                                     <Input
                                         id={`edit-${annotation.id}`}
                                         type="text"
-                                        defaultValue={annotation.className || annotation.label}
+                                        defaultValue={annotation.value}
                                         onKeyDown={(e) => {
                                             if (e.key === 'Enter') {
                                                 saveAnnotationEdit(annotation.id, e.currentTarget.value);

@@ -1,4 +1,16 @@
-import { useCallback } from 'react';
+import { Annotation, AnnotationApiResponse, ImageMetadata, ImageData } from '@/types';
+import { useCallback, type Dispatch, type SetStateAction } from 'react';
+
+interface UseImageOperationsProps {
+  setAnnotations: (annotations: Annotation[]) => void;
+  setZoom: (zoom: number) => void;
+  setPanOffset: (pos: { x: number; y: number }) => void;
+  setCurrentImageMetadata: (metadata: ImageMetadata | null) => void;
+  setHoveredAnnotation: (id: string | null) => void;
+  setSelectedAnnotation: (id: string | null) => void;
+  setCurrentImage: Dispatch<SetStateAction<ImageData | null>>;
+  setError: (message: string | null) => void;
+}
 
 export const useImageOperations = ({
   setAnnotations,
@@ -9,8 +21,7 @@ export const useImageOperations = ({
   setSelectedAnnotation,
   setCurrentImage,
   setError,
-  setCurrentImageIndex
-}) => {
+}: UseImageOperationsProps) => {
   const clearImageState = useCallback(() => {
     setAnnotations([]);
     setZoom(1);
@@ -20,59 +31,57 @@ export const useImageOperations = ({
     setSelectedAnnotation(null);
   }, [setAnnotations, setZoom, setPanOffset, setCurrentImageMetadata, setHoveredAnnotation, setSelectedAnnotation]);
 
-  const handleImageUpload = useCallback((event) => {
-    const file = event.target.files[0];
+  const handleImageUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (file && file.type.startsWith('image/')) {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = (e: ProgressEvent<FileReader>) => {
         clearImageState();
-        setCurrentImage(e.target.result);
+        const result = e.target?.result;
+        if (typeof result === 'string') {
+          setCurrentImage({ id: `local-${Date.now()}` as string, url: result });
+        }
         setError(null);
       };
       reader.readAsDataURL(file);
     }
   }, [clearImageState, setCurrentImage, setError]);
 
-  const handleJsonUpload = useCallback((event) => {
-    const file = event.target.files[0];
+  const handleJsonUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (file && file.type === 'application/json') {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = (e: ProgressEvent<FileReader>) => {
         try {
-          const data = JSON.parse(e.target.result);
-          // Handle Mapillary annotation format
-          if (data.detections && Array.isArray(data.detections)) {
-            const processedAnnotations = data.detections.map(detection => ({
-              id: detection.id,
-              label: detection.value,
-              className: detection.value,
-              bbox: {
-                x: detection.bbox[0], // x1
-                y: detection.bbox[1], // y1
-                width: detection.bbox[2] - detection.bbox[0], // x2 - x1
-                height: detection.bbox[3] - detection.bbox[1] // y2 - y1
-              },
-            }));
+          const text = e.target?.result;
+          if (typeof text !== 'string') {
+            throw new Error('Empty or invalid JSON');
+          }
+          const data: AnnotationApiResponse | Annotation[] = JSON.parse(text);
+          // Normalized handling
+          if ((data as AnnotationApiResponse).detections && Array.isArray((data as AnnotationApiResponse).detections)) {
+            const payload = data as AnnotationApiResponse;
+            const processedAnnotations: Annotation[] = payload.detections;
             setAnnotations(processedAnnotations);
 
-            // Store image metadata
-            if (data.width && data.height) {
+            if (payload.width && payload.height) {
               setCurrentImageMetadata({
-                width: data.width,
-                height: data.height,
-                lat: data.lat,
-                lon: data.lon,
-                creator: data.creator,
-                cameraType: data.camera_type,
-                sequence: data.sequence
+                id: payload.id ?? '',
+                filename: payload.filename ?? '',
+                width: payload.width,
+                height: payload.height,
+                lat: payload.lat ?? null,
+                lon: payload.lon ?? null,
+                creator: payload.creator ?? null,
+                annotations: processedAnnotations,
+                sequence: payload.sequence ?? null,
               });
             }
           } else {
-            // Fallback to simple format
-            setAnnotations(data);
+            setAnnotations(data as Annotation[]);
           }
           setError(null);
-        } catch (err) {
+        } catch {
           setError('Invalid JSON file format');
         }
       };
@@ -83,6 +92,6 @@ export const useImageOperations = ({
   return {
     clearImageState,
     handleImageUpload,
-    handleJsonUpload
+    handleJsonUpload,
   };
 };

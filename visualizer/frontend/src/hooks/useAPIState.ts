@@ -1,11 +1,5 @@
 import { useState } from 'react';
-
-interface Pagination {
-  page: number;
-  per_page: number;
-  total: number;
-  pages: number;
-}
+import { Pagination } from '@/types';
 
 export const useAPIState = () => {
   const [apiImages, setApiImages] = useState<string[]>([]);

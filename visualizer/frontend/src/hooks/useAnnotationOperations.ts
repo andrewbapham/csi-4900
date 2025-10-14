@@ -16,7 +16,6 @@ export const useAnnotationOperations = ({
         ? { ...annotation, validated: true }
         : annotation
     );
-    console.log('updated annotations', updatedAnnotations)
     setAnnotations(updatedAnnotations);
   }, [annotations, setAnnotations]);
 
@@ -40,7 +39,7 @@ export const useAnnotationOperations = ({
         : annotation
     );
     setAnnotations(updatedAnnotations);
-    setEditingAnnotation(null);
+    setEditingAnnotation("");
   }, [annotations, setAnnotations, setEditingAnnotation]);
 
   const deleteAnnotation = useCallback((index: number) => {

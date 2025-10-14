@@ -6,17 +6,7 @@ import ImageGallery from './ImageGallery';
 import UploadSection from './UploadSection';
 import MetadataDisplay from './MetadataDisplay';
 import AnnotationList from './AnnotationList';
-import { Annotation, ImageMetadata } from '@/types';
-
-interface Pagination {
-    page: number;
-    per_page: number;
-    total: number;
-    pages: number;
-    has_prev: boolean;
-    has_next: boolean;
-    total_images: number;
-}
+import { Annotation, ImageMetadata, Pagination } from '@/types';
 
 interface SidebarProps {
     sidebarWidth: number;
@@ -28,7 +18,6 @@ interface SidebarProps {
     loadingImages: boolean;
     loadApiImages: (page: number) => void;
     handleImageSelect: (index: number) => void;
-    handleDownload: (imageId: string) => void;
     fileInputRef: RefObject<HTMLInputElement>;
     jsonInputRef: RefObject<HTMLInputElement>;
     handleImageUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -46,7 +35,7 @@ interface SidebarProps {
     saveAnnotationEdit: (id: string, newLabel: string) => void;
     validateAnnotation: (id: string) => void;
     invalidateAnnotation: (id: string) => void;
-    formatClassName: (annotation: Annotation) => string;
+    formatClassName: (className: string | undefined | null) => string;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -59,7 +48,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     loadingImages,
     loadApiImages,
     handleImageSelect,
-    handleDownload,
     fileInputRef,
     jsonInputRef,
     handleImageUpload,
@@ -102,16 +90,15 @@ const Sidebar: React.FC<SidebarProps> = ({
                         <AccordionTrigger>Image Gallery</AccordionTrigger>
                         <AccordionContent>
                             <ImageGallery
-                                images={apiImages.map(id => `${apiBaseUrl}/api/images/${id}`)}
+                                images={apiImages.map(id => ({ id, url: `${apiBaseUrl}/api/images/${id}` }))}
                                 currentIndex={currentImageIndex}
                                 onImageSelect={handleImageSelect}
-                                onDownload={handleDownload}
                             />
                             {pagination && (
                                 <div className="pagination-controls mt-4">
                                     <div className="pagination-info text-sm text-muted-foreground mb-2">
                                         Page {pagination.page} of {pagination.pages}
-                                        ({pagination.total} total images)
+                                        ({pagination.total_images} total images)
                                     </div>
                                     <div className="pagination-buttons flex gap-2">
                                         <Button

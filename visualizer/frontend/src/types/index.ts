@@ -1,23 +1,41 @@
-export interface Annotation {
+
+export interface Creator {
   id: string;
-  label: string;
-  bbox: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  };
-  className?: string;
-  validated: boolean
+  username: string;
 }
 
+export interface Annotation {
+  id: string;
+  value: string;
+  geometry: string;
+  bbox: number[];
+  image_id: number;
+  validated?: boolean;
+}
+export interface AnnotationApiResponse {
+  id: string;
+  url: string
+  cameraType: string;
+  sequence: string;
+  creator: Creator;
+  filename: string;
+  width: number;
+  height: number;
+  lat: number;
+  lon: number;
+  detections: Annotation[];
+}
 export interface ImageMetadata {
   id: string;
   filename: string;
   width: number;
   height: number;
-  annotations?: Annotation[];
-  [key: string]: any;
+  annotations: Annotation[];
+  lat: number;
+  lon: number;
+  sequence: string;
+  creator: Creator | null;
+  cameraType?: string;
 }
 
 export interface ImageData {
@@ -25,6 +43,7 @@ export interface ImageData {
   url: string;
   metadata?: ImageMetadata;
 }
+
 
 export interface CanvasPosition {
   x: number;
@@ -89,3 +108,14 @@ export interface ZoomOperations {
   handleMouseUp: () => void;
   resetZoom: () => void;
 }
+
+export interface Pagination {
+  page: number;
+  per_page: number;
+  total: number;
+  pages: number;
+  has_prev: boolean;
+  has_next: boolean;
+  total_images: number;
+}
+

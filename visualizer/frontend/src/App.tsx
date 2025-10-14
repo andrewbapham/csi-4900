@@ -9,6 +9,7 @@ import { useZoomOperations } from './hooks/useZoomOperations';
 import Sidebar from './components/Sidebar';
 import ImageViewer from './components/ImageViewer';
 import './App.css';
+import { Annotation, AnnotationApiResponse } from './types/index.js';
 
 const App: React.FC = () => {
   // State management hooks
@@ -32,14 +33,14 @@ const App: React.FC = () => {
   } = apiState;
 
   const {
-    isValidating, setIsValidating, loading, setLoading, error, setError,
+    loading, setLoading, error, setError,
     sidebarWidth, setSidebarWidth, isDragging, setIsDragging
   } = uiState;
 
-  // Operation hooks
+  // Operation hooks 
   const imageOperations = useImageOperations({
     setAnnotations, setZoom, setPanOffset, setCurrentImageMetadata,
-    setHoveredAnnotation, setSelectedAnnotation, setCurrentImage, setError, setCurrentImageIndex
+    setHoveredAnnotation, setSelectedAnnotation, setCurrentImage, setError
   });
 
   const annotationOperations = useAnnotationOperations({
@@ -59,7 +60,7 @@ const App: React.FC = () => {
 
   // Keyboard shortcuts for zoom
   useEffect(() => {
-    const handleKeyDown = (event) => {
+    const handleKeyDown = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.metaKey) {
         switch (event.key) {
           case '=':
@@ -88,6 +89,7 @@ const App: React.FC = () => {
     if (!canvas || !currentImage) return;
 
     const ctx = canvas.getContext('2d');
+    if (!ctx) return;
     const img = new Image();
 
     img.onload = () => {
@@ -114,10 +116,16 @@ const App: React.FC = () => {
 
       // Only draw annotations if there are any
       if (annotations.length > 0) {
-        annotations.forEach((annotation, index) => {
-          const { bbox, className } = annotation;
-          const { x, y, width, height } = bbox;
-          const color = getClassColor(className);
+        annotations.forEach((annotation) => {
+          const { bbox } = annotation;
+          // bbox is [x1, y1, x2, y2] where origin is top-left (0,0)
+          const [x1, y1, x2, y2] = bbox as [number, number, number, number];
+          const x = x1;
+          const y = y1;
+          const width = x2 - x1;
+          const height = y2 - y1;
+
+          const color = getClassColor(annotation.value);
           const isHovered = hoveredAnnotation === annotation.id;
           const isSelected = selectedAnnotation === annotation.id;
 
@@ -129,15 +137,16 @@ const App: React.FC = () => {
 
           // Draw bounding box with enhanced style for hovered/selected
           ctx.strokeStyle = color;
-          ctx.lineWidth = isHovered || isSelected ? 4 : 2;
+          ctx.lineWidth = isHovered || isSelected ? 8 : 4;
           ctx.strokeRect(x, y, width, height);
 
           // Draw label background
-          const formattedClassName = formatClassName(className);
+          ctx.font = '18px Arial';
+          const formattedClassName = formatClassName(annotation.value);
           const labelText = formattedClassName;
           const textMetrics = ctx.measureText(labelText);
           const labelWidth = textMetrics.width + 8;
-          const labelHeight = 20;
+          const labelHeight = 24;
 
           ctx.fillStyle = color;
           ctx.fillRect(x, y - labelHeight, labelWidth, labelHeight);
@@ -145,13 +154,12 @@ const App: React.FC = () => {
           // Draw label text with high contrast color
           const textColor = getContrastColor(color);
           ctx.fillStyle = textColor;
-          ctx.font = '12px Arial';
           ctx.fillText(labelText, x + 4, y - 6);
         });
       }
     };
 
-    img.src = currentImage;
+    img.src = currentImage.url;
   };
 
   // Use the operations from hooks
@@ -166,7 +174,7 @@ const App: React.FC = () => {
       const nextIndex = currentImageIndex + 1;
 
       // If we're at the end of current page and there's a next page, load it
-      if (nextIndex >= apiImages.length && pagination?.has_next) {
+      if (nextIndex >= apiImages.length && pagination?.pages && pagination.pages > currentPage) {
         await loadApiImages(currentPage + 1);
         // After loading new page, load the first image
         if (apiImages.length > 0) {
@@ -199,7 +207,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleImageSelect = (index) => {
+  const handleImageSelect = (index: number) => {
     imageOperations.clearImageState();
 
     if (apiImages.length > 0) {
@@ -208,33 +216,22 @@ const App: React.FC = () => {
     }
   };
 
-  const handleDownload = (imageUrl: string) => {
-  
-  };
-
   // Use zoom operations from hooks
   const { handleZoomIn, handleZoomOut, handleResetZoom, handleFitToScreen } = zoomOperations;
 
-  const handleMouseDown = (e) => {
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     setIsDragging(true);
     e.preventDefault();
   };
 
-  const handleMouseMove = (e) => {
-    if (isDragging) {
-      const newWidth = e.clientX;
-      if (newWidth >= 250 && newWidth <= window.innerWidth - 200) {
-        setSidebarWidth(newWidth);
-      }
-    }
-  };
+  // React-level mouse move not used; document listeners handle dragging
 
   const handleMouseUp = () => {
     setIsDragging(false);
   };
 
   // Pan functionality for canvas
-  const handleCanvasMouseDown = (e) => {
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button === 0) { // Left mouse button
       setIsPanning(true);
       setLastPanPoint({ x: e.clientX, y: e.clientY });
@@ -242,7 +239,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleCanvasMouseMove = (e) => {
+  const handleCanvasMouseMove = (e: MouseEvent) => {
     if (isPanning) {
       const deltaX = e.clientX - lastPanPoint.x;
       const deltaY = e.clientY - lastPanPoint.y;
@@ -268,17 +265,25 @@ const App: React.FC = () => {
     setIsPanning(false);
   };
 
-  const handleCanvasMouseLeave = () => {
+  const handleCanvasMouseLeave = (e: React.MouseEvent<HTMLDivElement>) => {
     setIsPanning(false);
   };
 
   useEffect(() => {
     if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
+      const onMove = (e: MouseEvent) => {
+        const newWidth = e.clientX;
+        if (newWidth >= 250 && newWidth <= window.innerWidth - 200) {
+          setSidebarWidth(newWidth);
+        }
+      };
+      const onUp = () => handleMouseUp();
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
       return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
       };
     }
   }, [isDragging]);
@@ -304,7 +309,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const canvasWrapper = canvasWrapperRef.current;
     if (canvasWrapper) {
-      const handleWheel = (e) => {
+      const handleWheel = (e: WheelEvent) => {
         if (e.ctrlKey && currentImage) {
           e.preventDefault();
           e.stopPropagation();
@@ -340,67 +345,47 @@ const App: React.FC = () => {
         setError('Failed to load images from API');
       }
     } catch (err) {
-      setError('Error connecting to API: ' + err.message);
+      setError('Error connecting to API: ' + (err as Error).message);
     } finally {
       setLoadingImages(false);
     }
   };
 
-  const loadImageFromApi = async (imageId) => {
+  const loadImageFromApi = async (imageId: string) => {
     try {
       setLoading(true);
       setError(null);
 
       // Load image
       const imageUrl = `${apiBaseUrl}/api/images/${imageId}`;
-      setCurrentImage(imageUrl);
       setCurrentImageId(imageId);
 
       // Load annotations
       const annotationsResponse = await fetch(`${apiBaseUrl}/api/images/${imageId}/annotations`);
       if (annotationsResponse.ok) {
-        const annotationData = await annotationsResponse.json();
+        const annotationData: AnnotationApiResponse = await annotationsResponse.json();
 
         if (annotationData.detections && Array.isArray(annotationData.detections)) {
-          const processedAnnotations = annotationData.detections.map(detection => ({
-            id: detection.id,
-            label: detection.value,
-            className: detection.value,
-            bbox: {
-              x: detection.bbox[0],
-              y: detection.bbox[1],
-              width: detection.bbox[2] - detection.bbox[0],
-              height: detection.bbox[3] - detection.bbox[1]
-            },
-          }));
+          const processedAnnotations: Annotation[] = annotationData.detections
           setAnnotations(processedAnnotations);
 
-          if (annotationData.width && annotationData.height) {
-            setCurrentImageMetadata({
-              width: annotationData.width,
-              height: annotationData.height,
-              lat: annotationData.lat,
-              lon: annotationData.lon,
-              creator: annotationData.creator,
-              cameraType: annotationData.camera_type,
-              sequence: annotationData.sequence
-            });
-          }
-        } else {
-          setAnnotations(annotationData);
+          setCurrentImageMetadata({
+            id: imageId,
+            filename: annotationData.filename,
+            width: annotationData.width,
+            height: annotationData.height,
+            lat: annotationData.lat,
+            lon: annotationData.lon,
+            creator: annotationData.creator,
+            annotations: processedAnnotations,
+            sequence: annotationData.sequence ?? null,
+          });
+        
+          setCurrentImage({ url: imageUrl, id: imageId });
         }
-      } else {
-        setAnnotations([]);
-        setCurrentImageMetadata(null);
-      }
-
-      setZoom(1);
-      setPanOffset({ x: 0, y: 0 });
-      setHoveredAnnotation(null);
-      setSelectedAnnotation(null);
-
+      } 
     } catch (err) {
-      setError('Error loading image: ' + err.message);
+      setError('Error loading image: ' + (err as Error).message);
     } finally {
       setLoading(false);
     }
@@ -423,7 +408,6 @@ const App: React.FC = () => {
           loadingImages={loadingImages}
           loadApiImages={loadApiImages}
           handleImageSelect={handleImageSelect}
-          handleDownload={handleDownload}
           fileInputRef={fileInputRef}
           jsonInputRef={jsonInputRef}
           handleImageUpload={handleImageUpload}
@@ -457,13 +441,6 @@ const App: React.FC = () => {
           isPanning={isPanning}
           currentImageIndex={currentImageIndex}
           apiImages={apiImages}
-          apiBaseUrl={apiBaseUrl}
-          pagination={pagination}
-          currentPage={currentPage}
-          loadingImages={loadingImages}
-          loadApiImages={loadApiImages}
-          handleImageSelect={handleImageSelect}
-          handleDownload={handleDownload}
           handleCanvasMouseDown={handleCanvasMouseDown}
           handleCanvasMouseLeave={handleCanvasMouseLeave}
           handleZoomIn={handleZoomIn}
