@@ -84,7 +84,13 @@ async def get_image(image_id: str):
     if not image_path.exists():
         raise HTTPException(status_code=404, detail="Image not found")
 
-    return FileResponse(image_path, media_type="image/jpeg")
+    # Set Content-Disposition to attachment with a filename so browsers download instead of preview
+    return FileResponse(
+        image_path,
+        media_type="image/jpeg",
+        filename=f"{image_id}.jpg",
+        headers={"Content-Disposition": f'attachment; filename="{image_id}.jpg"'},
+    )
 
 
 @app.get("/api/images/{image_id}/annotations")
