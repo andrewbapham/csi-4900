@@ -335,7 +335,16 @@ const App: React.FC = () => {
       if (response.ok) {
         const data = await response.json();
         setApiImages(data.image_ids);
-        setPagination(data.pagination);
+        // Map backend pagination format to frontend format
+        setPagination({
+          page: data.pagination.page,
+          per_page: data.pagination.limit,
+          total: data.pagination.total_images,
+          pages: data.pagination.total_pages,
+          has_prev: data.pagination.has_prev,
+          has_next: data.pagination.has_next,
+          total_images: data.pagination.total_images
+        });
         setCurrentPage(page);
         if (data.image_ids.length > 0) {
           setCurrentImageIndex(0);
