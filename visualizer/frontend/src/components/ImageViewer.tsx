@@ -10,7 +10,7 @@ interface ImageViewerProps {
   zoom: number;
   isPanning: boolean;
   currentImageIndex: number;
-  apiImages: string[];
+  apiImages: ImageData[];
   handleCanvasMouseDown: (event: React.MouseEvent<HTMLDivElement>) => void;
   handleCanvasMouseLeave: (event: React.MouseEvent<HTMLDivElement>) => void;
   handleZoomIn: () => void;

@@ -23,7 +23,7 @@ interface useAnnotationCreationProps {
     canvasRef: React.RefObject<HTMLCanvasElement>;
     canvasWrapperRef: React.RefObject<HTMLDivElement>;
     zoom: number;
-    currentImageId: string;
+    currentImageId: string | null;
     apiBaseUrl: string;
     setAnnotations: React.Dispatch<React.SetStateAction<Annotation[]>>;
     setError: React.Dispatch<React.SetStateAction<string | null>>;
@@ -145,39 +145,47 @@ export const useAnnotationCreation = ({
                 };
 
                 // Save to API
-                const response = await fetch(
-                    `${apiBaseUrl}/api/images/${currentImageId}/annotations`,
-                    {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify(apiAnnotation),
+                if (currentImageId) {
+                    const response = await fetch(
+                        `${apiBaseUrl}/api/images/${currentImageId}/annotations`,
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify(apiAnnotation),
+                        }
+                    );
+
+                    if (response.ok) {
+                        const result = await response.json();
+
+                        // Add to local annotations state
+                        const newAnnotation: Annotation = {
+                            id: result.annotation.id,
+                            value: selectedClass,
+                            geometry: "",
+                            bbox: imageBboxToBoundingBox(currentBbox),
+                            image_id: parseInt(currentImageId),
+                        };
+
+                        setAnnotations((prev: Annotation[]) => [...prev, newAnnotation]);
+
+                        // Reset drawing state
+                        setIsDrawingAnnotation(false);
+                        setCurrentBbox(null);
+                        setDrawingStartPoint(null);
+                    } else {
+                        const errorData = await response.json();
+                        setError(`Failed to save annotation: ${errorData.detail || "Unknown error"}`);
+
+                        // Reset drawing state on error
+                        setIsDrawingAnnotation(false);
+                        setCurrentBbox(null);
+                        setDrawingStartPoint(null);
                     }
-                );
-
-                if (response.ok) {
-                    const result = await response.json();
-
-                    // Add to local annotations state
-                    const newAnnotation: Annotation = {
-                        id: result.annotation.id,
-                        value: selectedClass,
-                        geometry: "",
-                        bbox: imageBboxToBoundingBox(currentBbox),
-                        image_id: parseInt(currentImageId),
-                    };
-
-                    setAnnotations((prev: Annotation[]) => [...prev, newAnnotation]);
-
-                    // Reset drawing state
-                    setIsDrawingAnnotation(false);
-                    setCurrentBbox(null);
-                    setDrawingStartPoint(null);
                 } else {
-                    const errorData = await response.json();
-                    setError(`Failed to save annotation: ${errorData.detail || "Unknown error"}`);
-
+                    setError("No image selected for annotation");
                     // Reset drawing state on error
                     setIsDrawingAnnotation(false);
                     setCurrentBbox(null);

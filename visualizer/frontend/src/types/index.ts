@@ -84,7 +84,7 @@ export interface ImageState {
 }
 
 export interface APIState {
-  apiImages: string[];
+  apiImages: ImageData[];
   loading: boolean;
   error: string | null;
   apiBaseUrl: string;

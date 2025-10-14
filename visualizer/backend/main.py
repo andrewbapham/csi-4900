@@ -76,13 +76,28 @@ async def get_images(page: int = 1, limit: int = 10):
 
 @app.get("/api/images/{image_id}")
 async def get_image(image_id: str):
-    """Get image file"""
+    """Get image file for preview"""
     image_path = IMAGES_DIR / image_id / f"{image_id}.jpg"
 
     if not image_path.exists():
         raise HTTPException(status_code=404, detail="Image not found")
 
-    # Set Content-Disposition to attachment with a filename so browsers download instead of preview
+    # Return image for inline display (preview)
+    return FileResponse(
+        image_path,
+        media_type="image/jpeg",
+    )
+
+
+@app.get("/api/images/{image_id}/download")
+async def download_image(image_id: str):
+    """Download image file with Content-Disposition header"""
+    image_path = IMAGES_DIR / image_id / f"{image_id}.jpg"
+
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # Return image for download with Content-Disposition header
     return FileResponse(
         image_path,
         media_type="image/jpeg",

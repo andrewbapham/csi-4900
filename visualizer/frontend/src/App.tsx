@@ -12,7 +12,7 @@ import { useImageOperations } from "./hooks/useImageOperations";
 import { useAnnotationOperations } from "./hooks/useAnnotationOperations";
 import { useZoomOperations } from "./hooks/useZoomOperations";
 import { useAnnotationCreation } from "./hooks/useAnnotationCreation";
-import { Annotation, AnnotationApiResponse } from "./types";
+import { Annotation, AnnotationApiResponse, ImageData } from "./types";
 import Sidebar from "./components/Sidebar";
 import ImageViewer from "./components/ImageViewer";
 import AnnotationControls from "./components/AnnotationControls";
@@ -362,13 +362,13 @@ const App: React.FC = () => {
         // After loading new page, load the first image
         if (apiImages.length > 0) {
           setCurrentImageIndex(0);
-          await loadImageFromApi(apiImages[0]);
+          await loadImageFromApi(apiImages[0].id);
           // Fit to screen after loading new image
           setTimeout(() => handleFitToScreen(), 200);
         }
       } else if (nextIndex < apiImages.length) {
         setCurrentImageIndex(nextIndex);
-        await loadImageFromApi(apiImages[nextIndex]);
+        await loadImageFromApi(apiImages[nextIndex].id);
         // Fit to screen after loading new image
         setTimeout(() => handleFitToScreen(), 200);
       }
@@ -385,13 +385,13 @@ const App: React.FC = () => {
         // After loading new page, load the last image
         if (apiImages.length > 0) {
           setCurrentImageIndex(apiImages.length - 1);
-          await loadImageFromApi(apiImages[apiImages.length - 1]);
+          await loadImageFromApi(apiImages[apiImages.length - 1].id);
           // Fit to screen after loading new image
           setTimeout(() => handleFitToScreen(), 200);
         }
       } else if (prevIndex >= 0) {
         setCurrentImageIndex(prevIndex);
-        await loadImageFromApi(apiImages[prevIndex]);
+        await loadImageFromApi(apiImages[prevIndex].id);
         // Fit to screen after loading new image
         setTimeout(() => handleFitToScreen(), 200);
       }
@@ -403,7 +403,7 @@ const App: React.FC = () => {
 
     if (apiImages.length > 0) {
       setCurrentImageIndex(index);
-      await loadImageFromApi(apiImages[index]);
+      await loadImageFromApi(apiImages[index].id);
       // Fit to screen after loading new image
       setTimeout(() => handleFitToScreen(), 200);
     }
@@ -569,21 +569,55 @@ const App: React.FC = () => {
       );
       if (response.ok) {
         const data = await response.json();
-        setApiImages(data.image_ids);
-        // Map backend pagination format to frontend format
-        setPagination({
-          page: data.pagination.page,
-          per_page: data.pagination.limit,
-          total: data.pagination.total_images,
-          pages: data.pagination.total_pages,
-          has_prev: data.pagination.has_prev,
-          has_next: data.pagination.has_next,
-          total_images: data.pagination.total_images
+
+        // Fetch detailed info for each image ID
+        const imageDetailsPromises = data.image_ids.map(async (imageId: string) => {
+          try {
+            const infoResponse = await fetch(
+              `${apiBaseUrl}/api/images/${imageId}/info`
+            );
+            if (infoResponse.ok) {
+              const imageInfo = await infoResponse.json();
+              return {
+                id: imageId,
+                name: imageId,
+                url: `${apiBaseUrl}/api/images/${imageId}`,
+                thumbnail: `${apiBaseUrl}/api/images/${imageId}`, // Same as URL for now
+                width: imageInfo.width,
+                height: imageInfo.height,
+                size: imageInfo.image_size,
+                annotations: [], // Will be populated when image is loaded
+              };
+            } else {
+              // Fallback if info endpoint fails
+              return {
+                id: imageId,
+                name: imageId,
+                url: `${apiBaseUrl}/api/images/${imageId}`,
+                thumbnail: `${apiBaseUrl}/api/images/${imageId}`,
+                annotations: [],
+              };
+            }
+          } catch (err) {
+            console.warn(`Failed to fetch info for image ${imageId}:`, err);
+            // Fallback object
+            return {
+              id: imageId,
+              name: imageId,
+              url: `${apiBaseUrl}/api/images/${imageId}`,
+              thumbnail: `${apiBaseUrl}/api/images/${imageId}`,
+              annotations: [],
+            };
+          }
         });
+
+        const imageDetails = await Promise.all(imageDetailsPromises);
+        setApiImages(imageDetails);
+        setPagination(data.pagination);
         setCurrentPage(page);
-        if (data.image_ids.length > 0) {
+        if (imageDetails.length > 0) {
           setCurrentImageIndex(0);
-          setCurrentImageId(data.image_ids[0]);
+          setCurrentImageId(imageDetails[0].id);
         }
       } else {
         setError("Failed to load images from API");
@@ -618,19 +652,40 @@ const App: React.FC = () => {
           }));
           setAnnotations(processedAnnotations);
 
-          setCurrentImageMetadata({
-            id: imageId,
-            filename: annotationData.filename,
-            width: annotationData.width,
-            height: annotationData.height,
-            lat: annotationData.lat,
-            lon: annotationData.lon,
-            creator: annotationData.creator,
-            annotations: processedAnnotations,
-            sequence: annotationData.sequence ?? null,
-          });
+          // Update the annotations count in the apiImages array
+          setApiImages((prevImages) =>
+            prevImages.map((img) =>
+              img.id === imageId
+                ? { ...img, annotations: processedAnnotations }
+                : img
+            )
+          );
+
+          if (annotationData.width && annotationData.height) {
+            setCurrentImageMetadata({
+              id: imageId,
+              filename: annotationData.filename,
+              width: annotationData.width,
+              height: annotationData.height,
+              lat: annotationData.lat,
+              lon: annotationData.lon,
+              creator: annotationData.creator,
+              cameraType: annotationData.cameraType,
+              sequence: annotationData.sequence,
+              annotations: processedAnnotations,
+            });
+          }
         
           setCurrentImage({ url: imageUrl, id: imageId });
+        } else {
+          setAnnotations([]);
+
+          // Update the annotations count in the apiImages array
+          setApiImages((prevImages: ImageData[]) =>
+            prevImages.map((img) =>
+              img.id === imageId ? { ...img, annotations: [] } : img
+            )
+          );
         }
       } 
     } catch (err) {

@@ -2,9 +2,10 @@ import React, { RefObject } from 'react';
 import { Upload, FileText, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { ImageData } from '@/types';
 
 interface UploadSectionProps {
-    apiImages: string[];
+    apiImages: ImageData[];
     loadImageFromApi: (imageId: string) => Promise<void>;
     fileInputRef: RefObject<HTMLInputElement>;
     jsonInputRef: RefObject<HTMLInputElement>;
@@ -29,7 +30,7 @@ const UploadSection: React.FC<UploadSectionProps> = ({
                     {apiImages.length > 0 ? (
                         <Button
                             className="w-full"
-                            onClick={() => loadImageFromApi(apiImages[0])}
+                            onClick={() => loadImageFromApi(apiImages[0].id)}
                             disabled={loading}
                         >
                             <Database size={16} className="mr-2" />

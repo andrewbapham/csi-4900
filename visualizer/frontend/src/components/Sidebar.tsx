@@ -6,11 +6,11 @@ import ImageGallery from './ImageGallery';
 import UploadSection from './UploadSection';
 import MetadataDisplay from './MetadataDisplay';
 import AnnotationList from './AnnotationList';
-import { Annotation, ImageMetadata, Pagination } from '@/types';
+import { Annotation, ImageMetadata, Pagination, ImageData } from '@/types';
 
 interface SidebarProps {
     sidebarWidth: number;
-    apiImages: string[];
+    apiImages: ImageData[];
     currentImageIndex: number;
     apiBaseUrl: string;
     pagination: Pagination | null;
@@ -94,9 +94,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                         <AccordionTrigger>Image Gallery</AccordionTrigger>
                         <AccordionContent>
                             <ImageGallery
-                                images={apiImages.map(id => ({ id, url: `${apiBaseUrl}/api/images/${id}` }))}
+                                images={apiImages}
                                 currentIndex={currentImageIndex}
                                 onImageSelect={handleImageSelect}
+                                apiBaseUrl={apiBaseUrl}
                             />
                             {pagination && (
                                 <div className="pagination-controls mt-4">
