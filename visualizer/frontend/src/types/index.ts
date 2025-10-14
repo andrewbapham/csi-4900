@@ -4,13 +4,21 @@ export interface Creator {
   username: string;
 }
 
+export interface BoundingBox {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+
 export interface Annotation {
   id: string;
   value: string;
   geometry: string;
-  bbox: number[];
+  bbox: BoundingBox;
   image_id: number;
   validated?: boolean;
+  deleted?: boolean;
 }
 export interface AnnotationApiResponse {
   id: string;
@@ -85,7 +93,7 @@ export interface APIState {
 export interface ImageOperations {
   nextImage: () => void;
   prevImage: () => void;
-  handleImageSelect: (index: number) => void;
+  handleImageSelect: (index: number) => Promise<void>;
   loadImageFromApi: (imageId: string) => Promise<void>;
   handleImageUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
   handleJsonUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -94,7 +102,7 @@ export interface ImageOperations {
 
 export interface AnnotationOperations {
   editAnnotation: (annotationId: string) => void;
-  saveAnnotationEdit: (annotationId: string, newLabel: string) => void;
+  saveAnnotationEdit: (annotationId: string, newValue: string) => void;
   validateAnnotation: (annotationId: string) => void;
   invalidateAnnotation: (annotationId: string) => void;
   formatClassName: (className: string | undefined | null) => string;

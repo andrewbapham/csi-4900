@@ -1,15 +1,16 @@
 import { Annotation, AnnotationApiResponse, ImageMetadata, ImageData } from '@/types';
-import { useCallback, type Dispatch, type SetStateAction } from 'react';
+import React, { useCallback, type Dispatch, type SetStateAction } from 'react';
+import { apiFormatToBoundingBox } from '../utils/coordinateUtils';
 
 interface UseImageOperationsProps {
-  setAnnotations: (annotations: Annotation[]) => void;
-  setZoom: (zoom: number) => void;
-  setPanOffset: (pos: { x: number; y: number }) => void;
-  setCurrentImageMetadata: (metadata: ImageMetadata | null) => void;
-  setHoveredAnnotation: (id: string | null) => void;
-  setSelectedAnnotation: (id: string | null) => void;
-  setCurrentImage: Dispatch<SetStateAction<ImageData | null>>;
-  setError: (message: string | null) => void;
+  setAnnotations: React.Dispatch<React.SetStateAction<Annotation[]>>;
+  setZoom: React.Dispatch<React.SetStateAction<number>>;
+  setPanOffset: React.Dispatch<React.SetStateAction<{ x: number; y: number }>>;
+  setCurrentImageMetadata: React.Dispatch<React.SetStateAction<ImageMetadata | null>>;
+  setHoveredAnnotation: React.Dispatch<React.SetStateAction<string | null>>;
+  setSelectedAnnotation: React.Dispatch<React.SetStateAction<string | null>>;
+  setCurrentImage: React.Dispatch<React.SetStateAction<ImageData | null>>;
+  setError: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 export const useImageOperations = ({
@@ -61,7 +62,10 @@ export const useImageOperations = ({
           // Normalized handling
           if ((data as AnnotationApiResponse).detections && Array.isArray((data as AnnotationApiResponse).detections)) {
             const payload = data as AnnotationApiResponse;
-            const processedAnnotations: Annotation[] = payload.detections;
+            const processedAnnotations: Annotation[] = payload.detections.map((detection: any) => ({
+              ...detection,
+              bbox: apiFormatToBoundingBox(detection.bbox as [number, number, number, number])
+            }));
             setAnnotations(processedAnnotations);
 
             if (payload.width && payload.height) {
@@ -78,7 +82,15 @@ export const useImageOperations = ({
               });
             }
           } else {
-            setAnnotations(data as Annotation[]);
+            // Handle case where data is already an array of annotations
+            const annotations = data as Annotation[];
+            const processedAnnotations = annotations.map((annotation: any) => ({
+              ...annotation,
+              bbox: Array.isArray(annotation.bbox) 
+                ? apiFormatToBoundingBox(annotation.bbox as [number, number, number, number])
+                : annotation.bbox
+            }));
+            setAnnotations(processedAnnotations);
           }
           setError(null);
         } catch {

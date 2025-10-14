@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { ImageData, ImageMetadata, Annotation, CanvasPosition } from '../types';
+import { ImageBoundingBox } from '../utils/coordinateUtils';
 
 export const useImageState = () => {
   const [currentImage, setCurrentImage] = useState<ImageData | null>(null);
@@ -13,6 +14,10 @@ export const useImageState = () => {
   const [panOffset, setPanOffset] = useState<CanvasPosition>({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState<boolean>(false);
   const [lastPanPoint, setLastPanPoint] = useState<CanvasPosition>({ x: 0, y: 0 });
+  const [isDrawingAnnotation, setIsDrawingAnnotation] = useState<boolean>(false);
+  const [currentBbox, setCurrentBbox] = useState<ImageBoundingBox | null>(null);
+  const [selectedClass, setSelectedClass] = useState<string>('');
+  const [drawingStartPoint, setDrawingStartPoint] = useState<{ x: number; y: number } | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -43,6 +48,14 @@ export const useImageState = () => {
     setIsPanning,
     lastPanPoint,
     setLastPanPoint,
+    isDrawingAnnotation,
+    setIsDrawingAnnotation,
+    currentBbox,
+    setCurrentBbox,
+    selectedClass,
+    setSelectedClass,
+    drawingStartPoint,
+    setDrawingStartPoint,
     
     // Refs
     canvasRef,

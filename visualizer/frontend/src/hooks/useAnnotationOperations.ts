@@ -1,5 +1,5 @@
 import { Annotation } from '@/types';
-import { useCallback } from 'react';
+import React, { useCallback } from 'react';
 
 export const useAnnotationOperations = ({
   annotations,
@@ -7,8 +7,8 @@ export const useAnnotationOperations = ({
   setEditingAnnotation
 }: {
   annotations: Annotation[];
-  setAnnotations: (annotations: Annotation[]) => void;
-  setEditingAnnotation: (id: string) => void;
+  setAnnotations: React.Dispatch<React.SetStateAction<Annotation[]>>;
+  setEditingAnnotation: React.Dispatch<React.SetStateAction<string | null>>;
 }) => {
   const validateAnnotation = useCallback((id: string) => {
     const updatedAnnotations = annotations.map((annotation: Annotation) => 
@@ -32,18 +32,33 @@ export const useAnnotationOperations = ({
     setEditingAnnotation(id);
   }, [setEditingAnnotation]);
 
-  const saveAnnotationEdit = useCallback((id: string, newLabel: string) => {
+  const saveAnnotationEdit = useCallback((id: string, newValue: string) => {
+    console.log('Saving annotation edit:', { id, newValue });
     const updatedAnnotations = annotations.map((annotation: Annotation) => 
       annotation.id === id 
-        ? { ...annotation, label: newLabel, className: newLabel }
+        ? { ...annotation, value: newValue }
+        : annotation
+    );
+    console.log('Updated annotations:', updatedAnnotations);
+    setAnnotations(updatedAnnotations);
+    setEditingAnnotation(null);
+  }, [annotations, setAnnotations, setEditingAnnotation]);
+
+  const deleteAnnotation = useCallback((id: string) => {
+    const updatedAnnotations = annotations.map((annotation: Annotation) => 
+      annotation.id === id
+        ? { ...annotation, deleted: true }
         : annotation
     );
     setAnnotations(updatedAnnotations);
-    setEditingAnnotation("");
-  }, [annotations, setAnnotations, setEditingAnnotation]);
+  }, [annotations, setAnnotations]);
 
-  const deleteAnnotation = useCallback((index: number) => {
-    const updatedAnnotations = annotations.filter((_: Annotation, i: number) => i !== index);
+  const restoreAnnotation = useCallback((id: string) => {
+    const updatedAnnotations = annotations.map((annotation: Annotation) => 
+      annotation.id === id
+        ? { ...annotation, deleted: false }
+        : annotation
+    );
     setAnnotations(updatedAnnotations);
   }, [annotations, setAnnotations]);
 
@@ -52,6 +67,7 @@ export const useAnnotationOperations = ({
     invalidateAnnotation,
     editAnnotation,
     saveAnnotationEdit,
-    deleteAnnotation
+    deleteAnnotation,
+    restoreAnnotation
   };
 };

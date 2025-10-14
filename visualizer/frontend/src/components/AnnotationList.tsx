@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle, XCircle, Edit3, Save } from 'lucide-react';
+import { CheckCircle, XCircle, Edit3, Save, Trash2, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,9 +14,11 @@ interface AnnotationListProps {
     setSelectedAnnotation: (id: string | null) => void;
     editingAnnotation: string | null;
     editAnnotation: (id: string) => void;
-    saveAnnotationEdit: (id: string, newLabel: string) => void;
+    saveAnnotationEdit: (id: string, newValue: string) => void;
     validateAnnotation: (id: string) => void;
     invalidateAnnotation: (id: string) => void;
+    deleteAnnotation: (id: string) => void;
+    restoreAnnotation: (id: string) => void;
     formatClassName: (className: string | undefined | null) => string;
 }
 
@@ -31,6 +33,8 @@ const AnnotationList: React.FC<AnnotationListProps> = ({
     saveAnnotationEdit,
     validateAnnotation,
     invalidateAnnotation,
+    deleteAnnotation,
+    restoreAnnotation,
     formatClassName
 }) => {
     return (
@@ -49,6 +53,8 @@ const AnnotationList: React.FC<AnnotationListProps> = ({
                             selectedAnnotation === annotation.id ? 'ring-2 ring-primary' : ''
                         } ${
                             annotation.validated ? 'bg-green-200' : ''
+                        } ${
+                            annotation.deleted ? 'opacity-50 bg-gray-100' : ''
                         }`}
                         onMouseEnter={() => setHoveredAnnotation(annotation.id)}
                         onMouseLeave={() => setHoveredAnnotation(null)}
@@ -112,6 +118,21 @@ const AnnotationList: React.FC<AnnotationListProps> = ({
                                                 }}
                                             >
                                                 <XCircle size={14} />
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (annotation.deleted) {
+                                                        restoreAnnotation(annotation.id);
+                                                    } else {
+                                                        deleteAnnotation(annotation.id);
+                                                    }
+                                                }}
+                                                className={annotation.deleted ? 'text-green-600 hover:text-green-700' : 'text-red-600 hover:text-red-700'}
+                                            >
+                                                {annotation.deleted ? <RotateCcw size={14} /> : <Trash2 size={14} />}
                                             </Button>
                                         </>
                                     )}
