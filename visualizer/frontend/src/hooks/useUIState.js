@@ -6,6 +6,7 @@ export const useUIState = () => {
   const [error, setError] = useState(null);
   const [sidebarWidth, setSidebarWidth] = useState(350);
   const [isDragging, setIsDragging] = useState(false);
+  const [annotationMode, setAnnotationMode] = useState(false);
 
   return {
     isValidating,
@@ -17,6 +18,8 @@ export const useUIState = () => {
     sidebarWidth,
     setSidebarWidth,
     isDragging,
-    setIsDragging
+    setIsDragging,
+    annotationMode,
+    setAnnotationMode
   };
 };

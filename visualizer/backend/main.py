@@ -135,5 +135,55 @@ async def get_image_info(image_id: str):
     return info
 
 
+@app.post("/api/images/{image_id}/annotations")
+async def add_annotation(image_id: str, annotation: dict):
+    """Add a new annotation to a specific image"""
+    json_path = IMAGES_DIR / image_id / f"{image_id}.json"
+
+    if not json_path.exists():
+        raise HTTPException(status_code=404, detail="Image annotations not found")
+
+    # Validate required fields
+    required_fields = ["id", "value", "geometry", "bbox"]
+    for field in required_fields:
+        if field not in annotation:
+            raise HTTPException(
+                status_code=400, detail=f"Missing required field: {field}"
+            )
+
+    try:
+        # Read existing annotations
+        with open(json_path, "r") as f:
+            data = json.load(f)
+
+        # Create new annotation object with image_id
+        new_annotation = {
+            "id": annotation["id"],
+            "value": annotation["value"],
+            "geometry": annotation["geometry"],
+            "bbox": annotation["bbox"],  # Assume it's already a list
+            "image_id": int(image_id),
+        }
+
+        # Add to annotations list
+        if "annotations" not in data:
+            data["annotations"] = []
+        data["annotations"].append(new_annotation)
+
+        # Write back to file
+        with open(json_path, "w") as f:
+            json.dump(data, f, indent=2)
+
+        return {
+            "message": "Annotation added successfully",
+            "annotation": new_annotation,
+        }
+
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="Invalid JSON file")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

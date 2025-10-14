@@ -13,6 +13,12 @@ export const useImageState = () => {
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
 
+  // Annotation creation states
+  const [isDrawingAnnotation, setIsDrawingAnnotation] = useState(false);
+  const [currentBbox, setCurrentBbox] = useState(null);
+  const [selectedClass, setSelectedClass] = useState('regulatory--stop--g1');
+  const [drawingStartPoint, setDrawingStartPoint] = useState(null);
+
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
   const jsonInputRef = useRef(null);
@@ -42,7 +48,17 @@ export const useImageState = () => {
     setIsPanning,
     lastPanPoint,
     setLastPanPoint,
-    
+
+    // Annotation creation states
+    isDrawingAnnotation,
+    setIsDrawingAnnotation,
+    currentBbox,
+    setCurrentBbox,
+    selectedClass,
+    setSelectedClass,
+    drawingStartPoint,
+    setDrawingStartPoint,
+
     // Refs
     canvasRef,
     fileInputRef,
