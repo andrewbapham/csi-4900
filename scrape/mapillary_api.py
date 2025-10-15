@@ -251,6 +251,8 @@ def get_candidate_images(id_results: list[TrafficSignFeature]) -> list[Mapillary
                         lat=feat.latitude,
                         lon=feat.longitude,
                         sequence=imeta["sequence"],
+                        width=imeta["width"],
+                        height=imeta["height"],
                     )
 
                     candidates.append(candidate)
@@ -262,7 +264,9 @@ def get_candidate_images(id_results: list[TrafficSignFeature]) -> list[Mapillary
     return candidates
 
 
-def _save_image_with_detections(image: MapillaryImage, output_dir: str) -> None:
+def _save_image_with_detections(
+    image: MapillaryImage, output_dir: str, json_only=False
+) -> None:
     dets = get_detections_by_image(image)
     dets = [det for det in dets if re.match(TRAFFIC_SIGN_REGEX, det.value)]
 
@@ -270,10 +274,11 @@ def _save_image_with_detections(image: MapillaryImage, output_dir: str) -> None:
         logger.warning("no detections found for %s", image.id)
         return
 
-    download_image(image)
-    logger.debug(
-        "Image %s downloaded, size: %dx%d", image.id, image.width, image.height
-    )
+    if not json_only:
+        download_image(image)
+        logger.debug(
+            "Image %s downloaded, size: %dx%d", image.id, image.width, image.height
+        )
 
     for det in dets:
         detection_bboxes = _parse_geometry_to_multiple_bboxes(det.geometry, image)
@@ -291,7 +296,10 @@ def _save_image_with_detections(image: MapillaryImage, output_dir: str) -> None:
                 )
             )
 
-    image.save_image_and_detections(f"{output_dir}/{image.id}")
+    if not json_only:
+        image.save_image_and_detections(f"{output_dir}/{image.id}")
+    else:
+        image.save_detections(f"{output_dir}/{image.id}/{image.id}.json")
     # clear out to save mem when processing huge amounts of images
     image.image = None
     image.image_bytes = None
@@ -300,6 +308,7 @@ def _save_image_with_detections(image: MapillaryImage, output_dir: str) -> None:
 def save_images_with_detections_by_id(
     id_results: list[TrafficSignFeature],
     output_dir: str = "images",
+    json_only: bool = False,
 ) -> int:
     """
     For each feature id:
@@ -348,7 +357,9 @@ def save_images_with_detections_by_id(
     saved = 0
     with ThreadPoolExecutor(max_workers=MAP_CONFIG.MAX_CONCURRENT_WORKERS) as executor:
         future_to_cand = {
-            executor.submit(_save_image_with_detections, cand, output_dir): cand
+            executor.submit(
+                _save_image_with_detections, cand, output_dir, json_only
+            ): cand
             for cand in candidates
         }
         for future in tqdm.tqdm(

@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { ImageData } from '@/types';
 
 export const useZoomOperations = ({
   zoom,
@@ -6,8 +7,14 @@ export const useZoomOperations = ({
   setPanOffset,
   canvasWrapperRef,
   currentImage
+}: {
+  zoom: number;
+  setZoom: React.Dispatch<React.SetStateAction<number>>;
+  setPanOffset: React.Dispatch<React.SetStateAction<{ x: number; y: number }>>;
+  canvasWrapperRef: React.RefObject<HTMLDivElement>;
+  currentImage: ImageData | null;
 }) => {
-  const calculateOptimalZoom = useCallback((imgWidth, imgHeight) => {
+  const calculateOptimalZoom = useCallback((imgWidth: number, imgHeight: number) => {
     const canvasWrapper = document.querySelector('.canvas-wrapper');
     if (!canvasWrapper) return 1;
 
@@ -54,7 +61,7 @@ export const useZoomOperations = ({
   }, [setZoom, setPanOffset, scrollToImage]);
 
   const handleFitToScreen = useCallback(() => {
-    if (currentImage) {
+    if (currentImage && currentImage.url) {
       const img = new Image();
       img.onload = () => {
         const optimalZoom = calculateOptimalZoom(img.width, img.height);
@@ -65,7 +72,7 @@ export const useZoomOperations = ({
           scrollToImage();
         }, 100);
       };
-      img.src = currentImage;
+      img.src = currentImage.url;
     }
   }, [currentImage, calculateOptimalZoom, setZoom, scrollToImage]);
 

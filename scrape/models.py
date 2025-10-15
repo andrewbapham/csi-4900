@@ -72,6 +72,13 @@ class MapillaryImageCreator(BaseModel):
     username: str
 
 
+class Detection(BaseModel):
+    id: int
+    value: str
+    geometry: str  # base64 encoded geometry for bounding box
+    bbox: tuple[int, int, int, int]
+
+
 class MapillaryImageDetection(BaseModel):
     id: int
     value: str
