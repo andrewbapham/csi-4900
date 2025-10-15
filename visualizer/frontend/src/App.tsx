@@ -4,7 +4,7 @@ import {
   getClassColor,
   getContrastColor,
 } from "./utils/annotationUtils";
-import { boundingBoxToImageBbox, apiFormatToBoundingBox, screenToImageCoordinates } from "./utils/coordinateUtils";
+import { boundingBoxToImageBbox, apiFormatToBoundingBox } from "./utils/coordinateUtils";
 import { useImageState } from "./hooks/useImageState";
 import { useAPIState } from "./hooks/useAPIState";
 import { useUIState } from "./hooks/useUIState";
@@ -154,16 +154,6 @@ const App: React.FC = () => {
   // Keyboard shortcuts for zoom and annotation
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Handle delete key for selected annotation
-      if (event.key === "Delete" || event.key === "Backspace") {
-        if (selectedAnnotation) {
-          event.preventDefault();
-          deleteAnnotation(selectedAnnotation);
-          setSelectedAnnotation(null); // Clear selection after deletion
-        }
-        return;
-      }
-
       // Handle escape key for annotation mode
       if (event.key === "Escape") {
         if (isDrawingAnnotation) {
@@ -197,7 +187,7 @@ const App: React.FC = () => {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [zoomOperations, isDrawingAnnotation, annotationMode, annotationCreation, selectedAnnotation]);
+  }, [zoomOperations, isDrawingAnnotation, annotationMode, annotationCreation]);
 
   // Store the loaded image for reuse
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
@@ -509,19 +499,6 @@ const App: React.FC = () => {
         return;
       }
 
-      // Check if we clicked on an existing bounding box
-      if (!isDrawingAnnotation) {
-        const clickedAnnotationId = getClickedAnnotation(e);
-        if (clickedAnnotationId) {
-          setSelectedAnnotation(clickedAnnotationId);
-          e.preventDefault();
-          return;
-        } else {
-          // Clear selection if clicking on empty space
-          setSelectedAnnotation(null);
-        }
-      }
-
       // Otherwise, handle panning (but not if we're currently drawing)
       if (!isDrawingAnnotation) {
         setIsPanning(true);
@@ -620,25 +597,6 @@ const App: React.FC = () => {
     handleCanvasMouseMove,
     handleCanvasMouseUp,
   ]);
-
-  // Add hover detection event listener (always active)
-  useEffect(() => {
-    const canvasWrapper = canvasWrapperRef.current;
-    if (canvasWrapper) {
-      const handleHoverMove = (e: MouseEvent) => {
-        // Only handle hover detection when not panning or drawing
-        if (!isPanning && !isDrawingAnnotation) {
-          const hoveredAnnotationId = getHoveredAnnotation(e);
-          setHoveredAnnotation(hoveredAnnotationId);
-        }
-      };
-
-      canvasWrapper.addEventListener("mousemove", handleHoverMove);
-      return () => {
-        canvasWrapper.removeEventListener("mousemove", handleHoverMove);
-      };
-    }
-  }, [isPanning, isDrawingAnnotation, hoveredAnnotation, getHoveredAnnotation, setHoveredAnnotation]);
 
   // Load images from API on component mount
   useEffect(() => {
