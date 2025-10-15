@@ -1,15 +1,16 @@
 // Color palette for different classes - optimized for contrast
-export const colors = [
+export const colors: string[] = [
   '#E74C3C', '#3498DB', '#2ECC71', '#F39C12', '#9B59B6',
   '#1ABC9C', '#34495E', '#E67E22', '#8E44AD', '#27AE60'
 ];
 
-export const getClassColor = (className) => {
+export const getClassColor = (className: string | undefined | null): string => {
+  if (!className) return colors[0];
   const index = className.charCodeAt(0) % colors.length;
   return colors[index];
 };
 
-export const getContrastColor = (backgroundColor) => {
+export const getContrastColor = (backgroundColor: string): string => {
   // Convert hex to RGB
   const hex = backgroundColor.replace('#', '');
   const r = parseInt(hex.substr(0, 2), 16);
@@ -23,7 +24,10 @@ export const getContrastColor = (backgroundColor) => {
   return luminance > 0.5 ? '#000000' : '#ffffff';
 };
 
-export const formatClassName = (className) => {
+export const formatClassName = (className: string | undefined | null): string => {
+  // Handle undefined/null cases
+  if (!className) return 'Unknown';
+  
   // Convert Mapillary format (regulatory--stop--g1) to readable format
   return className
     .split('--')

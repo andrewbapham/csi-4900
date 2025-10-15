@@ -1,11 +1,9 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import os
 import json
 from pathlib import Path
-from typing import List, Optional
 import uvicorn
 
 app = FastAPI(title="Annotation Visualizer API", version="1.0.0")
@@ -78,13 +76,34 @@ async def get_images(page: int = 1, limit: int = 10):
 
 @app.get("/api/images/{image_id}")
 async def get_image(image_id: str):
-    """Get image file"""
+    """Get image file for preview"""
     image_path = IMAGES_DIR / image_id / f"{image_id}.jpg"
 
     if not image_path.exists():
         raise HTTPException(status_code=404, detail="Image not found")
 
-    return FileResponse(image_path, media_type="image/jpeg")
+    # Return image for inline display (preview)
+    return FileResponse(
+        image_path,
+        media_type="image/jpeg",
+    )
+
+
+@app.get("/api/images/{image_id}/download")
+async def download_image(image_id: str):
+    """Download image file with Content-Disposition header"""
+    image_path = IMAGES_DIR / image_id / f"{image_id}.jpg"
+
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # Return image for download with Content-Disposition header
+    return FileResponse(
+        image_path,
+        media_type="image/jpeg",
+        filename=f"{image_id}.jpg",
+        headers={"Content-Disposition": f'attachment; filename="{image_id}.jpg"'},
+    )
 
 
 @app.get("/api/images/{image_id}/annotations")

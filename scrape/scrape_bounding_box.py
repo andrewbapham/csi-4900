@@ -46,6 +46,7 @@ def main():
         "--output-dir", "-o", type=str, help="Output directory", default="images"
     )
     parser.add_argument("--log-level", type=str, help="Log level", default="WARNING")
+    parser.add_argument("--json-only", action="store_true", help="Only save JSON files")
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -54,6 +55,8 @@ def main():
     )
     logger = logging.getLogger(__name__)
 
+    if args.output_dir:
+        os.makedirs(args.output_dir, exist_ok=True)
     bbox = None
     tile_coords = None
     ids = None
@@ -70,7 +73,9 @@ def main():
     output_dir = args.output_dir
 
     print(f"found {len(ids)} detection ids")
-    images_with_detections = save_images_with_detections_by_id(ids, output_dir)
+    images_with_detections = save_images_with_detections_by_id(
+        ids, output_dir, json_only=args.json_only
+    )
     print(f"Saved {images_with_detections} images with detections")
 
     # iterate through images with detections, in the images directory
