@@ -62,9 +62,9 @@ To see the raw `.txt` file of all labels, view `all_labels.txt`
 
 ## Warning
 
-| Class                                  | Mapillary Label(s)                                                         | Description                                             |
-| -------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------- |
-| road_narrows_right                     | warning--road-narrows-right--g2                                            |                                                         |
+| Class               | Mapillary Label(s)              | Description |
+| ------------------- | ------------------------------ | ----------- |
+| road_narrows_right  | warning--road-narrows-right--g2 |             |
 | road_narrows_left                      | warning--road-narrows-left--g2                                             |                                                         |
 | bicycles_crossing                      | warning--bicycles-crossing--g2                                             |                                                         |
 | children                               | warning--children--g2                                                      |                                                         |
