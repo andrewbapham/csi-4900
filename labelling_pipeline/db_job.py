@@ -27,10 +27,14 @@ def main():
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             # Fetch rows
             cur.execute("""
-                SELECT * 
-                FROM image 
-                INNER JOIN detection ON image.id = detection.image_id 
-                WHERE value = %s;
+                SELECT i.*, d.*
+                FROM image i
+                JOIN detection d ON i.id = d.image_id
+                WHERE i.id IN (
+                    SELECT image_id
+                    FROM detection
+                    WHERE value = %s
+                ) AND i.uploaded = FALSE;
             """, (args.value,))
             rows = cur.fetchall()
 

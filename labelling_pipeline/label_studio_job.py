@@ -2,11 +2,12 @@ import json
 import os
 from label_studio_sdk import Client
 from dotenv import load_dotenv
-
+import psycopg2
 from label_to_class_mapping import LABEL_TO_CLASS
 
 load_dotenv()
 
+uploaded_images = set()
 
 def prepare_json_for_label_studio(input_json_path: str, output_json_path: str):
     with open(input_json_path, "r", encoding="utf-8") as f:
@@ -30,21 +31,31 @@ def prepare_json_for_label_studio(input_json_path: str, output_json_path: str):
 
     # input may be a single dict or a list
 
-    tasks = []
-    for image_id in list(images.keys())[:args.num_images]: # limit to first num_images images for testing
+    tasks = {}
+
+    for image_id in list(images.keys())[:10]: # limit to first 1000 images for testing
+
+        unknown_label_found = False
+
         image_data = images.get(image_id)
         image_url = image_data.get("url")
         width = image_data.get("width")
         height = image_data.get("height")
         image_id = image_data.get("id")
 
-        task = {"data": {"image": image_url}}
-
         results = []
         predictions = image_data.get("detections") or []
+
+        detections_by_class = {}
         for det in predictions:
             bbox = det.get("bbox")
             label = LABEL_TO_CLASS.get(det.get("value"), "unknown")
+
+            if label == "unknown":
+                print(f"Warning: unknown label '{det.get('value')}' for detection id {det.get('id')}. Skipping.")
+                unknown_label_found = True
+                break
+                
             det_id = det.get("id") or f"{image_id}-{len(results)}"
 
             if not bbox or width in (None, 0) or height in (None, 0):
@@ -81,12 +92,32 @@ def prepare_json_for_label_studio(input_json_path: str, output_json_path: str):
                 },
             }
 
-            results.append(result)
+            if label not in detections_by_class:
+                detections_by_class[label] = []
 
-        if results:
-            task["predictions"] = [{"result": results}]
+            detections_by_class[label].append(result)
 
-        tasks.append(task)
+
+        if unknown_label_found:
+            continue
+        else:
+            uploaded_images.add(image_id)
+
+        for det_class in detections_by_class.keys():
+            if det_class not in tasks:
+                tasks[det_class] = []
+            for det in detections_by_class[det_class]:
+                tasks[det_class].append(
+                    {
+                        "data": {"image": image_url},
+                        "predictions": [
+                            {
+                                "result": detections_by_class[det_class]
+                            }
+                        ]
+                    }
+                )
+
 
     # write tasks to output
     with open(output_json_path, "w", encoding="utf-8") as out:
@@ -103,14 +134,12 @@ if __name__ == "__main__":
     )
     parser.add_argument("input", help="Path to input JSON file (single object or list)")
     parser.add_argument("output", help="Path to write Label Studio tasks JSON")
-    parser.add_argument("num_images", type=int, help="Number of images to process from the input JSON")
     parser.add_argument(
         "--import",
         dest="do_import",
         action="store_true",
-        help="If set, import the generated tasks into project 1 using LABEL_STUDIO_API_KEY",
+        help="If set, import the detections into Label Studio using LABEL_STUDIO_API_KEY",
     )
-    parser.add_argument("--project-id", type=int, default=1, help="ID of the Label Studio project to import tasks into")
 
     args = parser.parse_args()
     prepare_json_for_label_studio(args.input, args.output)
@@ -121,14 +150,47 @@ if __name__ == "__main__":
                 data = json.load(f)
             # reuse project variable defined at module top
             ls = Client(
-                url=s.getenv("LABEL_STUDIO_URL"),
+                url=os.getenv("LABEL_STUDIO_URL"),
                 api_key=os.getenv("LABEL_STUDIO_API_KEY"),
             )
-            project = ls.get_project(args.project_id)
+            projects = ls.get_projects()
+            project_dict = {p.title: p for p in projects}
 
-            project.import_tasks(data)
-            print(
-                f"Imported tasks from {args.output} into Label Studio project {project.id}"
+            for class_name in data.keys():
+                project = project_dict.get(class_name)
+                if not project:
+                    print(f"No Label Studio project found with title '{class_name}'. Skipping import for this class.")
+                    continue
+
+                project.import_tasks(data[class_name])
+                print(
+                    f"Imported tasks from {args.output} into Label Studio project {project.id}"
+                )
+
+            conn = psycopg2.connect(
+                user=os.getenv("PGUSER"),
+                password=os.getenv("PGPASSWORD"),
+                host=os.getenv("PGHOST"),
+                port=os.getenv("PGPORT"),
             )
+
+            cur = conn.cursor()
+
+            cur.execute(
+                """
+                UPDATE image
+                SET uploaded = TRUE
+                WHERE id = ANY(%s);
+                """,
+                (list(uploaded_images),)
+            )
+
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            print(f"Uploaded detections from {len(uploaded_images)} images into Label Studio.")
+            print(f"Marked {len(uploaded_images)} images as uploaded in the database.")
+
         except Exception as e:
             print("Failed to import tasks into Label Studio:", e)
