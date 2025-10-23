@@ -83,7 +83,7 @@ To see the raw `.txt` file of all labels, view `all_labels.txt`
 | traffic_signal_warning                 | warning--traffic-signals--g3                                               |                |
 | traffic_merges_left                    | warning--traffic-merges-left--g1                                           |                |
 | traffic_merges_right                   | warning--traffic-merges-right--g1                                          |                |
-| text_warning                           | warning--texts--g[1-3]                                                     |                |     |
+| text_warning                           | warning--texts--g1                                                         |                |     |
 | stop_ahead                             | warning--stop-ahead--g1                                                    |                |
 | t_junction                             | warning--t-roads--g2                                                       |                |
 | slippery_road                          | warning--slippery-road-surface--g2                                         |                |
