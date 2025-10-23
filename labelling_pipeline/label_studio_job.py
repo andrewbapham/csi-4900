@@ -120,7 +120,7 @@ def prepare_json_for_label_studio(input_json_path: str, output_json_path: str):
                             "image_id": image_id,
                             "image_width": width,
                             "image_height": height,
-                            "sequence": sequence,
+                            "sequence_id": sequence_id,
                             "creator": creator,
                             "camera_type": camera_type,
                             "lat": lat,

@@ -41,11 +41,14 @@ def main():
                         SELECT
                             i.*,
                             d.*,
+                            c.username as creator,
                             ROW_NUMBER() OVER(PARTITION BY d.value ORDER BY i.id) AS rn
                         FROM
                             image i
                         JOIN
                             detection d ON i.id = d.image_id
+                        JOIN 
+                            creator c ON i.creator_id = c.id
                         WHERE
                             d.value IN %s
                             AND i.uploaded = FALSE
@@ -72,6 +75,11 @@ def main():
                 "height": row.get("height"),
                 "id": image_id,
                 "detections": [],
+                "sequence_id": row.get("sequence_id"),
+                "creator": row.get("creator"),
+                "camera_type": row.get("camera_type"),
+                "lat": row.get("lat"),
+                "lon": row.get("lon"),
             }
         output[image_id]["detections"].append(
             {"id": row.get("id"), "value": row.get("value"), "bbox": row.get("bbox")}
