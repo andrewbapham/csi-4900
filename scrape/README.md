@@ -34,3 +34,9 @@ python scrape_bounding_box.py --tile "(14,4578,5979)"
 ```
 
 Note that tile and bbox are mutually exclusive.
+
+Greater Toronto Area Bbox: (-80.156245, 43.421036, -78.662243, 44.040219)
+Greater Vancouver Area Bbox: (-123.284454, 49.009220, -122.498932, 49.373599)
+Greater Montreal Area Bbox: (-73.943481, 45.405380, -73.435364, 45.711154)
+Greater Ottawa Area Bbox: (-75.897675,45.310813,-75.510406,45.511339)
+Quebec City Bbox: (-71.721497,46.496856,-70.776672,47.038661)
