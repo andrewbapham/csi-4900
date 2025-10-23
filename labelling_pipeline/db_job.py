@@ -80,6 +80,7 @@ def main():
                 "camera_type": row.get("camera_type"),
                 "lat": row.get("lat"),
                 "lon": row.get("lon"),
+                "city": row.get("city"),
             }
         output[image_id]["detections"].append(
             {"id": row.get("id"), "value": row.get("value"), "bbox": row.get("bbox")}
