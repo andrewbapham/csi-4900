@@ -33,7 +33,7 @@ def prepare_json_for_label_studio(input_json_path: str, output_json_path: str):
 
     tasks = {}
 
-    for image_id in list(images.keys())[:10]: # limit to first 1000 images for testing
+    for image_id in list(images.keys()): # [:100]: <-- limit to first <number> images for testing
 
         unknown_label_found = False
 
@@ -42,6 +42,12 @@ def prepare_json_for_label_studio(input_json_path: str, output_json_path: str):
         width = image_data.get("width")
         height = image_data.get("height")
         image_id = image_data.get("id")
+        sequence_id = image_data.get("sequence_id")
+        creator = image_data.get("creator")
+        camera_type = image_data.get("camera_type")
+        lat = image_data.get("lat")
+        lon = image_data.get("lon")
+        city = image_data.get("city")
 
         results = []
         predictions = image_data.get("detections") or []
@@ -110,11 +116,18 @@ def prepare_json_for_label_studio(input_json_path: str, output_json_path: str):
                 tasks[det_class].append(
                     {
                         "data": {"image": image_url},
-                        "predictions": [
-                            {
-                                "result": detections_by_class[det_class]
-                            }
-                        ]
+                        "predictions": [{"result": detections_by_class[det_class]}],
+                        "meta": {
+                            "image_id": image_id,
+                            "image_width": width,
+                            "image_height": height,
+                            "sequence_id": sequence_id,
+                            "creator": creator,
+                            "camera_type": camera_type,
+                            "lat": lat,
+                            "lon": lon,
+                            "city": city,
+                        },
                     }
                 )
 
