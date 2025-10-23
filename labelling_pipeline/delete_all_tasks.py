@@ -39,10 +39,10 @@ def delete_all_tasks_from_projects():
                 # Delete all tasks
                 for task in tasks:
                     try:
-                        project.delete_task(task.id)
+                        project.delete_task(task['id'])
                         total_tasks_deleted += 1
                     except Exception as e:
-                        print(f"    Error deleting task {task.id}: {e}")
+                        print(f"    Error deleting task {task['id']}: {e}")
 
                 print(f"  Deleted {task_count} tasks from project '{project.title}'")
             else:
