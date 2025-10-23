@@ -42,11 +42,12 @@ def prepare_json_for_label_studio(input_json_path: str, output_json_path: str):
         width = image_data.get("width")
         height = image_data.get("height")
         image_id = image_data.get("id")
-        sequence = image_data.get("sequence")
+        sequence_id = image_data.get("sequence_id")
         creator = image_data.get("creator")
         camera_type = image_data.get("camera_type")
         lat = image_data.get("lat")
         lon = image_data.get("lon")
+        city = image_data.get("city")
 
         results = []
         predictions = image_data.get("detections") or []
@@ -125,6 +126,7 @@ def prepare_json_for_label_studio(input_json_path: str, output_json_path: str):
                             "camera_type": camera_type,
                             "lat": lat,
                             "lon": lon,
+                            "city": city,
                         },
                     }
                 )
