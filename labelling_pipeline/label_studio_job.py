@@ -112,8 +112,8 @@ def prepare_json_for_label_studio(input_json_path: str, output_json_path: str):
         for det_class in detections_by_class.keys():
             if det_class not in tasks:
                 tasks[det_class] = []
-            for det in detections_by_class[det_class]:
-                tasks[det_class].append(
+
+            tasks[det_class].append(
                     {
                         "data": {"image": image_url},
                         "predictions": [{"result": detections_by_class[det_class]}],
